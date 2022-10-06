@@ -1,0 +1,55 @@
+experiment_dir: /home/weiyu/Research/intern/StructDiffuser/experiments/${env:DATETIME}
+
+random_seed: 1
+device: 0
+
+save_model: True
+save_best_model: True
+
+dataset:
+  dirs:
+    - /home/weiyu/data_drive/data_new_objects/examples_circle_new_objects/result
+    - /home/weiyu/data_drive/data_new_objects/examples_line_new_objects/result
+    - /home/weiyu/data_drive/data_new_objects/examples_tower_new_objects/result
+    - /home/weiyu/data_drive/data_new_objects/examples_dinner_new_objects/result
+  index_dirs:
+    - index_10k
+    - index_10k
+    - index_10k
+    - index_10k
+  vocab_dir: /home/weiyu/data_drive/data_new_objects/type_vocabs_coarse.json
+  batch_size: 32
+  max_num_objects: 5
+  max_num_other_objects: 5
+  max_num_shape_parameters: 5
+  max_num_rearrange_features: 0
+  max_num_anchor_features: 0
+  num_pts: 1024
+  filter_num_moved_objects_range:
+    - 5
+    - 5
+  num_workers: 4
+  pin_memory: True
+  shuffle_object_index: True
+
+model:
+  name: transformer_diffuser
+  num_attention_heads: 8
+  encoder_hidden_dim: 512
+  encoder_dropout: 0.0
+  encoder_activation: relu
+  encoder_num_layers: 8
+  structure_dropout: 0
+  object_dropout: 0
+  ignore_rgb: True
+
+training:
+  learning_rate: 0.0001
+  max_epochs: 200
+  l2: 0  #0.0001
+  # lr_restart: 3000
+  # warmup: 10
+
+diffusion:
+  time_steps: 200
+  loss_type: huber

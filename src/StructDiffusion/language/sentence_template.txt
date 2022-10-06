@@ -1,0 +1,216 @@
+# ('size',)
+build a [size] shape from the objects
+put the objects in to a [size] shape
+place the objects as a [size] shape
+make a [size] shape from the objects
+rearrange the objects into a [size] structure
+
+# ('shape',)
+build a [shape]
+make a [shape]
+put the objects into a [shape]
+place the objects as a [shape]
+pick up the objects, and place them as a [shape]
+
+# ('x',)
+place the objects on the [x] of the table
+put the objects on [x]
+make a structure from the objects and place it on [x]
+on the [x] of the table, place the objects
+move the objects to the [x]
+
+# ('y',)
+place the objects on the [y] of the table
+put the objects on [y]
+make a structure from the objects and place it on [y]
+on the [y] of the table, place the objects
+move the objects to the [y]
+
+# ('rotation',)
+build a structure facing [rotation]
+make a structure from the objects and make sure it is pointing [rotation]
+put the objects in a structure that faces [rotation]
+rotate the object structure so that it points [rotation]
+[rotation] is the direction the structure built from the objects should be facing
+
+# ('size', 'shape')
+build a [size] [shape]
+make a [size] [shape]
+put the objects into a [size] [shape]
+place the objects as a [size] [shape]
+pick up the objects, and place them as a [size] [shape]
+
+# ('size', 'x')
+build a [size] shape from the objects on the [x] of the table
+put the objects in to a [size] shape and place it on [x]
+on the [x] of the table, place the objects as a [size] shape
+make a [size] shape from the objects and move it to [x]
+rearrange the objects into a [size] structure on [x]
+
+# ('size', 'y')
+build a [size] shape from the objects on the [y] of the table
+put the objects in to a [size] shape and place it on [y]
+on the [y] of the table, place the objects as a [size] shape
+make a [size] shape from the objects and move it to [y]
+rearrange the objects into a [size] structure on [y]
+
+# ('size', 'rotation')
+build a [size] shape from the objects facing [rotation]
+put the objects in to a [size] shape and place it so that it faces [rotation]
+place the objects as a [size] shape and [rotation] is the direction the shape built from the objects should be facing
+make a [size] structure from the objects and rotate the object structure so that it points [rotation]
+rearrange the objects into a [size] structure that points to [rotation]
+
+# ('shape', 'x')
+build a [shape] from the objects on the [x] of the table
+put the objects in to a [shape] and place it on [x]
+on the [x] of the table, place the objects as a [shape]
+make a [shape] from the objects and move it to [x]
+rearrange the objects into a [shape] on [x]
+
+# ('shape', 'y')
+build a [shape] from the objects on the [y] of the table
+put the objects in to a [shape] and place it on [y]
+on the [y] of the table, place the objects as a [shape]
+make a [shape] from the objects and move it to [y]
+rearrange the objects into a [shape] on [y]
+
+# ('shape', 'rotation')
+build a [shape] from the objects facing [rotation]
+put the objects in to a [shape] and place it so that it faces [rotation]
+place the objects as a [shape] and [rotation] is the direction the shape built from the objects should be facing
+make a [shape] from the objects and rotate the shape so that it points [rotation]
+rearrange the objects into a [shape] that points to [rotation]
+
+# ('x', 'y')
+place the objects on the [x] and [y] of the table
+put the objects on [x] [y] of the table
+make a structure from the objects and place it on [x] [y]
+on the [x] [y] of the table, place the objects
+move the objects to the [x] [y]
+
+# ('x', 'rotation')
+build a structure on the [x] of the table facing [rotation]
+make a structure from the objects and make sure it is pointing [rotation] and on [x]
+rearrange the objects in a structure that faces [rotation] and place it on [x]
+move and rotate the object structure so that it is on [x] and points [rotation]
+[rotation] is the direction the structure built from the objects should be facing, [x] is the location
+
+# ('y', 'rotation')
+build a structure on the [y] of the table facing [rotation]
+make a structure from the objects and make sure it is pointing [rotation] and on [y]
+rearrange the objects in a structure that faces [rotation] and place it on [y]
+move and rotate the object structure so that it is on [y] and points [rotation]
+[rotation] is the direction the structure built from the objects should be facing, [y] is the location
+
+# ('size', 'shape', 'x')
+build a [size] [shape] from the objects on the [x] of the table
+put the objects in to a [size] [shape] and place it on [x]
+on the [x] of the table, place the objects as a [shape], make the shape [size]
+make a [size] [shape] from the objects and move it to [x]
+rearrange the objects into a [size] [shape] on [x]
+
+# ('size', 'shape', 'y')
+build a [size] [shape] from the objects on the [y] of the table
+put the objects in to a [size] [shape] and place it on [y]
+on the [y] of the table, place the objects as a [shape], make the shape [size]
+make a [size] [shape] from the objects and move it to [y]
+rearrange the objects into a [size] [shape] on [y]
+
+# ('size', 'shape', 'rotation')
+build a [size] [shape] from the objects facing [rotation]
+put the objects in to a [size] [shape] and place it so that it faces [rotation]
+place the objects as a [size] [shape] and [rotation] is the direction the shape built from the objects should be facing
+make a [size] [shape] from the objects and rotate the shape so that it points [rotation]
+rearrange the objects into a [size] [shape] that points to [rotation]
+
+# ('size', 'x', 'y')
+build a [size] shape from the objects on the [x] [y] of the table
+put the objects in to a [size] shape and place it on [x] and [y]
+on the [x] [y] of the table, place the objects as a [size] shape
+make a [size] shape from the objects and move it to [x] [y]
+rearrange the objects into a [size] structure on [x] and on [y]
+
+# ('size', 'x', 'rotation')
+build a [size] structure on the [x] of the table facing [rotation]
+make a [size] structure from the objects and make sure it is pointing [rotation] and on [x]
+rearrange the objects in a [size] structure that faces [rotation] and place it on [x]
+move and rotate the [size] object structure so that it is on [x] and points [rotation]
+[rotation] is the direction the [size] structure built from the objects should be facing, [x] is the location
+
+# ('size', 'y', 'rotation')
+build a [size] structure on the [y] of the table facing [rotation]
+make a [size] structure from the objects and make sure it is pointing [rotation] and on [y]
+rearrange the objects in a [size] structure that faces [rotation] and place it on [y]
+move and rotate the [size] object structure so that it is on [y] and points [rotation]
+[rotation] is the direction the [size] structure built from the objects should be facing, [y] is the location
+
+# ('shape', 'x', 'y')
+build a [shape] from the objects on the [x] [y] of the table
+put the objects in to a [shape] and place it on [x] and [y]
+on the [x] [y] of the table, place the objects as a [shape]
+make a [shape] from the objects and move it to [x] [y]
+rearrange the objects into a [shape] on [x] and on [y]
+
+# ('shape', 'x', 'rotation')
+build a [shape] on the [x] of the table facing [rotation]
+make a [shape] from the objects and make sure it is pointing [rotation] and on [x]
+rearrange the objects in a [shape] that faces [rotation] and place it on [x]
+move and rotate the [shape] so that it is on [x] and points [rotation]
+[rotation] is the direction the [shape] built from the objects should be facing, [x] is the location
+
+# ('shape', 'y', 'rotation')
+build a [shape] on the [y] of the table facing [rotation]
+make a [shape] from the objects and make sure it is pointing [rotation] and on [y]
+rearrange the objects in a [shape] that faces [rotation] and place it on [y]
+move and rotate the [shape] so that it is on [y] and points [rotation]
+[rotation] is the direction the [shape] built from the objects should be facing, [y] is the location
+
+# ('x', 'y', 'rotation')
+build a structure on the [x] [y] of the table facing [rotation]
+make a structure from the objects and make sure it is pointing [rotation] and on [x] [y]
+rearrange the objects in a structure that faces [rotation] and place it on [x] [y]
+move and rotate the object structure so that it is on [x] [y] and points [rotation]
+[rotation] is the direction the structure built from the objects should be facing, [x] [y] is the location
+
+# ('size', 'shape', 'x', 'y')
+build a [shape] from the objects on the [x] [y] of the table, make the [shape] [size]
+put the objects in to a [size] [shape] and place it on [x] and [y]
+on the [x] [y] of the table, place the objects as a [size] [shape]
+make a [size] [shape] from the objects and move it to [x] [y]
+rearrange the objects into a [size] [shape] on [x] and on [y]
+
+# ('size', 'shape', 'x', 'rotation')
+build a [size] [shape] on the [x] of the table facing [rotation]
+make a [size] [shape] from the objects and make sure it is pointing [rotation] and on [x]
+rearrange the objects in a [size] [shape] that faces [rotation] and place it on [x]
+move and rotate the [size] [shape] so that it is on [x] and points [rotation]
+[rotation] is the direction the [size] [shape] built from the objects should be facing, [x] is the location
+
+# ('size', 'shape', 'y', 'rotation')
+build a [size] [shape] on the [y] of the table facing [rotation]
+make a [size] [shape] from the objects and make sure it is pointing [rotation] and on [y]
+rearrange the objects in a [size] [shape] that faces [rotation] and place it on [y]
+move and rotate the [size] [shape] so that it is on [y] and points [rotation]
+[rotation] is the direction the [size] [shape] built from the objects should be facing, [y] is the location
+
+# ('size', 'x', 'y', 'rotation')
+build a [size] structure on the [x] [y] of the table facing [rotation]
+make a [size] structure from the objects and make sure it is pointing [rotation] and on [x] [y]
+rearrange the objects in a [size] structure that faces [rotation] and place it on [x] [y]
+move and rotate the [size] object structure so that it is on [x] [y] and points [rotation]
+[rotation] is the direction the [size] structure built from the objects should be facing, [x] [y] is the location
+
+# ('shape', 'x', 'y', 'rotation')
+build a [shape] on the [x] [y] of the table facing [rotation]
+make a [shape] from the objects and make sure it is pointing [rotation] and on [x] [y]
+rearrange the objects as a [shape] that faces [rotation] and place it on [x] [y]
+move and rotate the [shape] so that it is on [x] [y] and points [rotation]
+[rotation] is the direction the [shape] built from the objects should be facing, [x] [y] is the location
+
+# ('size', 'shape', 'x', 'y', 'rotation')
+build a [size] [shape] on the [x] [y] of the table facing [rotation]
+make a [size] [shape] from the objects and make sure it is pointing [rotation] and on [x] [y]
+rearrange the objects as a [size] [shape] that faces [rotation] and place it on [x] [y]
+move and rotate the [size] [shape] so that it is on [x] [y] and points [rotation]
+[rotation] is the direction the [size] [shape] built from the objects should be facing, [x] [y] is the location
