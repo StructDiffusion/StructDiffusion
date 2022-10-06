@@ -1,0 +1,3 @@
+geometry_msgs/PoseStamped graspPose  # Requested grasp pose
+---
+bool success                         # true if planner is ready to attempt the requested grasp

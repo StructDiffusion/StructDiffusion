@@ -1,0 +1,8 @@
+geometry_msgs/PoseStamped pose   # End-effector pose goal for planning
+float32 planningTime      # Maximum planning time, defaults to 5 seconds if unset
+float64 jointStateDifference   # Maximum difference in joint angles allowed between start and goal pose
+---
+bool ikSuccess  # True if IK was successfully calculated
+bool success    # True on successful planning and execution
+---
+float32 progress  # Approximate percentage of action complete

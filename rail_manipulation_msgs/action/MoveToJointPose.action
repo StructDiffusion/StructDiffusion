@@ -1,0 +1,6 @@
+float32[] joints      # Full set of arm joint angles as a planning goal
+float32 planningTime  # Maximum planning time, defaults to 5 seconds if unset
+---
+bool success          # True on successful planning and execution
+---
+float32 progress      # Approximate percentage of action complete

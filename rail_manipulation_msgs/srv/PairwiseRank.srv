@@ -1,0 +1,3 @@
+
+---
+geometry_msgs/PoseArray grasp_list   # ordered list of suggested grasps, ranked by pairwise classifier

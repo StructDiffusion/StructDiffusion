@@ -175,6 +175,29 @@ def move_pc_and_create_scene(obj_xyzs, struct_pose, pc_poses_in_struct):
     return new_obj_xyzs
 
 
+def compute_current_and_goal_pc_poses(obj_xyzs, struct_pose, pc_poses_in_struct):
+
+    device = obj_xyzs.device
+
+    # obj_xyzs: B, N, P, 3
+    # struct_pose: B, 1, 4, 4
+    # pc_poses_in_struct: B, N, 4, 4
+    B, N, _, _ = pc_poses_in_struct.shape
+    _, _, P, _ = obj_xyzs.shape
+
+    current_pc_poses = torch.eye(4).repeat(B, N, 1, 1).to(device)  # B, N, 4, 4
+    # print(torch.mean(obj_xyzs, dim=2).shape)
+    current_pc_poses[:, :, :3, 3] = torch.mean(obj_xyzs, dim=2)  # B, N, 4, 4
+
+    struct_pose = struct_pose.repeat(1, N, 1, 1)  # B, N, 4, 4
+    struct_pose = struct_pose.reshape(B * N, 4, 4)  # B x 1, 4, 4
+    pc_poses_in_struct = pc_poses_in_struct.reshape(B * N, 4, 4)  # B x N, 4, 4
+
+    goal_pc_poses = struct_pose @ pc_poses_in_struct  # B x N, 4, 4
+    goal_pc_poses = goal_pc_poses.reshape(B, N, 4, 4)  # B, N, 4, 4
+    return current_pc_poses, goal_pc_poses
+
+
 def visualize_batch_pcs(obj_xyzs, B, N, P, verbose=True, limit_B=None, save_dir=None):
     if limit_B is None:
         limit_B = B

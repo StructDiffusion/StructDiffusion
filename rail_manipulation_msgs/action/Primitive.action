@@ -1,0 +1,20 @@
+# Define the goal
+
+#actions
+uint8 TRANSLATION=0
+uint8 ROTATION=1
+
+#axes
+uint8 X_AXIS=0
+uint8 Y_AXIS=1
+uint8 Z_AXIS=2
+
+uint8 primitive_type    # type of primitive action
+uint8 axis              # axis of translation/rotation
+float64 distance        # distance to perform the action (in m or rad)
+---
+# Define the result
+float64 completion      # percentage of the primitive action completed
+---
+# Define a feedback message
+string feedback         # feedback message

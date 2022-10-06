@@ -1,0 +1,5 @@
+geometry_msgs/PoseStamped[] waypoints  # waypoints to plan Cartesian paths through (planning starts from current arm position)
+bool avoidCollisions            # flag to enable/disable collision avoidance
+---
+bool success                    # true if a path was planned successfully
+float64 completion              # percentage of the path planned

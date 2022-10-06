@@ -1,0 +1,9 @@
+sensor_msgs/PointCloud2[] object_point_clouds       # list of object point clouds
+string shape                                        # goal shape {line, dinner, circle, tower}
+float64 rotation                                    # goal rotation [-3.15, 3.15]
+float64 position_x                                  # goal x position [-0.1, 1.0]
+float64 position_y                                  # goal y position [-0.5, 0.5]
+float64 radius                                      # goal radius [0.0, 0.5]
+---
+geometry_msgs/PoseArray[] batch_current_pc_poses    # list of list of current poses for the input objects (Batch size, Number of objects,)
+geometry_msgs/PoseArray[] batch_goal_pc_poses       # list of list of goal poses for the input objects (Batch size, Number of objects,)

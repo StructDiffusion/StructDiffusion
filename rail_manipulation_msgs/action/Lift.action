@@ -1,0 +1,7 @@
+# Define the goal
+---
+# Define the result
+bool success    # If the grasp and store was successful
+---
+# Define a feedback message
+string message  # The current state message

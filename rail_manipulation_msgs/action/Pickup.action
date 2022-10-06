@@ -1,0 +1,9 @@
+geometry_msgs/PoseStamped pose  # End-effector pickup pose
+bool lift                       # Flag for arm lifting after pickup
+bool verify                     # Flag for grasp verification after gripper close/lift
+bool attachObject               # Flag for whether or not the picked up object should be attached to the gripper
+---
+bool executionSuccess   # True if the arm could successfully complete motion planning
+bool success            # True if the object is verified to be in the gripper after pickup
+---
+string message  # The current state message

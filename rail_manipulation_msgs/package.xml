@@ -1,0 +1,30 @@
+<package>
+  <name>rail_manipulation_msgs</name>
+  <version>0.0.14</version>
+  <description>Common Manipulation Messages and Services Used in RAIL Manipulation Packages</description>
+
+  <author email="dekent@gatech.edu">David Kent</author>
+  <author email="russell.toris@gmail.com">Russell Toris</author>
+  <maintainer email="dekent@gatech.edu">David Kent</maintainer>
+  <maintainer email="russell.toris@gmail.com">Russell Toris</maintainer>
+  
+  <license>BSD</license>
+
+  <url type="website">http://ros.org/wiki/rail_manipulation_msgs</url>
+  <url type="bugtracker">https://github.com/GT-RAIL/rail_manipulation_msgs/issues</url>
+  <url type="repository">https://github.com/GT-RAIL/rail_manipulation_msgs</url>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>actionlib_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>message_generation</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+
+  <run_depend>actionlib_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <run_depend>message_runtime</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>visualization_msgs</run_depend>
+</package>

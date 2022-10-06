@@ -1,0 +1,9 @@
+# Define the goal
+SegmentedObject object  # Unrecognized object
+string name             # Optional name of the object used to narrow down model candidates
+---
+# Define the result
+SegmentedObject object  # Object with recognized fields filled in if recognized
+---
+# Define a feedback message
+string message          # The current state message

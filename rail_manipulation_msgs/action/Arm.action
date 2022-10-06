@@ -1,0 +1,9 @@
+# valid actions
+uint8 READY=0
+uint8 RETRACT=1
+
+uint8 action  #action that the arm should take
+---
+bool success  # True on successful planning and execution
+---
+string message  # The current state message

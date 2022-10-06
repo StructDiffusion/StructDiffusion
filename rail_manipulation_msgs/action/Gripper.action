@@ -1,0 +1,10 @@
+# Define the goal
+bool close      # True for close gripper, false for open gripper
+float64 speed   # Speed the gripper should move at, in the gripper's preferred units
+float64 force   # Force the gripper should move at, in the gripper's preferred units
+---
+# Define the result
+bool success    # If the gripper action was successful
+---
+# Define a feedback message
+string message  # The current state message

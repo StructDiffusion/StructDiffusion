@@ -1,0 +1,3 @@
+sensor_msgs/PointCloud2 cloud       # object point cloud
+---
+geometry_msgs/PoseArray grasp_list   # ordered list of suggested grasps
