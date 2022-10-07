@@ -615,27 +615,43 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
     #     return datum
 
     @staticmethod
-    def convert_to_tensors(datum, tokenizer):
+    def convert_to_tensors(datum, tokenizer, robot_mode=False):
 
-        tensors = {
-            "xyzs": torch.stack(datum["xyzs"], dim=0),
-            "rgbs": torch.stack(datum["rgbs"], dim=0),
-            "obj_pad_mask": torch.LongTensor(datum["obj_pad_mask"]),
-            "other_xyzs": torch.stack(datum["other_xyzs"], dim=0),
-            "other_rgbs": torch.stack(datum["other_rgbs"], dim=0),
-            "other_obj_pad_mask": torch.LongTensor(datum["other_obj_pad_mask"]),
-            "sentence": torch.LongTensor([tokenizer.tokenize(*i) for i in datum["sentence"]]),
-            "sentence_pad_mask": torch.LongTensor(datum["sentence_pad_mask"]),
-            "token_type_index": torch.LongTensor(datum["token_type_index"]),
-            "position_index": torch.LongTensor(datum["position_index"]),
-            "struct_position_index": torch.LongTensor(datum["struct_position_index"]),
-            "struct_token_type_index": torch.LongTensor(datum["struct_token_type_index"]),
-            "struct_pad_mask": torch.LongTensor(datum["struct_pad_mask"]),
-            "obj_xyztheta_inputs": torch.FloatTensor(datum["obj_xyztheta_inputs"]),
-            "struct_xyztheta_inputs": torch.FloatTensor(datum["struct_xyztheta_inputs"]),
-            "t": datum["t"],
-            "filename": datum["filename"]
-        }
+        if robot_mode:
+            tensors = {
+                "xyzs": torch.stack(datum["xyzs"], dim=0),
+                "obj_pad_mask": torch.LongTensor(datum["obj_pad_mask"]),
+                "sentence": torch.LongTensor([tokenizer.tokenize(*i) for i in datum["sentence"]]),
+                "sentence_pad_mask": torch.LongTensor(datum["sentence_pad_mask"]),
+                "token_type_index": torch.LongTensor(datum["token_type_index"]),
+                "position_index": torch.LongTensor(datum["position_index"]),
+                "struct_position_index": torch.LongTensor(datum["struct_position_index"]),
+                "struct_token_type_index": torch.LongTensor(datum["struct_token_type_index"]),
+                "struct_pad_mask": torch.LongTensor(datum["struct_pad_mask"]),
+                "obj_xyztheta_inputs": torch.FloatTensor(datum["obj_xyztheta_inputs"]),
+                "struct_xyztheta_inputs": torch.FloatTensor(datum["struct_xyztheta_inputs"]),
+            }
+        else:
+            tensors = {
+                "xyzs": torch.stack(datum["xyzs"], dim=0),
+                "rgbs": torch.stack(datum["rgbs"], dim=0),
+                "obj_pad_mask": torch.LongTensor(datum["obj_pad_mask"]),
+                "other_xyzs": torch.stack(datum["other_xyzs"], dim=0),
+                "other_rgbs": torch.stack(datum["other_rgbs"], dim=0),
+                "other_obj_pad_mask": torch.LongTensor(datum["other_obj_pad_mask"]),
+                "sentence": torch.LongTensor([tokenizer.tokenize(*i) for i in datum["sentence"]]),
+                "sentence_pad_mask": torch.LongTensor(datum["sentence_pad_mask"]),
+                "token_type_index": torch.LongTensor(datum["token_type_index"]),
+                "position_index": torch.LongTensor(datum["position_index"]),
+                "struct_position_index": torch.LongTensor(datum["struct_position_index"]),
+                "struct_token_type_index": torch.LongTensor(datum["struct_token_type_index"]),
+                "struct_pad_mask": torch.LongTensor(datum["struct_pad_mask"]),
+                "obj_xyztheta_inputs": torch.FloatTensor(datum["obj_xyztheta_inputs"]),
+                "struct_xyztheta_inputs": torch.FloatTensor(datum["struct_xyztheta_inputs"]),
+                "t": datum["t"],
+                "filename": datum["filename"]
+            }
+
         return tensors
 
     def __getitem__(self, idx):
