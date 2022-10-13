@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 from __future__ import print_function
 
+import os.path
 import sys
 import rospy
-
+import datetime
 import trimesh
 import numpy as np
 import pytorch3d.transforms as tra3d
@@ -85,7 +86,7 @@ class RearrangementModelServer:
                  discriminator_model_dir=None, discriminator_score_weight=0.0,
                  collision_model_dir=None, collision_score_weight=0.0,
                  num_samples=50, num_elite=5, discriminator_inference_batch_size=10,
-                 visualize=False):
+                 visualize=False, save_dir=None):
 
         self.prior_inference = DiffuserInference(model_dir)
         self.discriminator_score_weight = discriminator_score_weight
@@ -99,6 +100,11 @@ class RearrangementModelServer:
         self.num_elite = num_elite
         self.discriminator_inference_batch_size = discriminator_inference_batch_size
         self.visualize = visualize
+        self.save_dir = save_dir
+
+        if self.save_dir is not None:
+            if not os.path.exists(self.save_dir):
+                os.makedirs(self.save_dir)
 
         # TODO: figure out how to resolve this name
         self.server = rospy.Service('rearrangement_model', RearrangeObjects, self.run_model)
@@ -464,9 +470,9 @@ class RearrangementModelServer:
             move_pc_and_create_scene_new(obj_xyzs, elite_obj_params, elite_struct_poses1, batch_current_pc_pose,
                                          target_object_inds, device,
                                          return_scene_pts=True, num_scene_pts=num_scene_pts, normalize_pc=True)
-        if visualize:
-            print("visualizing elite rearrangements ranked by collision model/discriminator")
-            visualize_batch_pcs(best_new_obj_xyzs, num_elite, N, P, limit_B=num_elite)
+        # if visualize:
+        #     print("visualizing elite rearrangements ranked by collision model/discriminator")
+        #     visualize_batch_pcs(best_new_obj_xyzs, num_elite, N, P, limit_B=num_elite)
 
         ####################################################
 
@@ -480,13 +486,18 @@ class RearrangementModelServer:
         # pc_poses_in_struct = goal_pc_pose_in_struct.reshape(num_elite, N, 4, 4)
 
 
-        if self.visualize:
+        if self.save_dir is not None:
+            now = datetime.datetime.now()
+            datastr = now.strftime("%Y-%m-%d-%H-%M")
+            lang = str(prior_dataset.tokenizer.convert_structure_params_to_natural_language(sample_raw_data["sentence"]))
+            save_file_temp = os.path.join(self.save_dir, datastr + "_" + lang + "_{}.png")
+        if self.visualize or self.save_dir is not None:
             print("visualizing elite rearrangements ranked by collision model/discriminator")
             # new_obj_xyzs = move_pc_and_create_scene(xyzs, struct_pose, pc_poses_in_struct)
             # visualize_batch_pcs(new_obj_xyzs, B, N, P, verbose=False, limit_B=num_samples)
 
             batch_new_obj_xyzs = best_new_obj_xyzs.cpu().numpy()[:, :, :, :3]
-            for new_obj_xyzs in batch_new_obj_xyzs:
+            for bi, new_obj_xyzs in enumerate(batch_new_obj_xyzs):
                 # new_obj_xyzs: num_target_objs, P, 3
                 vis_pcs = [trimesh.PointCloud(obj_xyz, colors=np.concatenate([obj_rgb, np.ones([P, 1]) * 255], axis=-1))
                            for obj_xyz, obj_rgb in zip(new_obj_xyzs, obj_rgbs)]
@@ -494,7 +505,7 @@ class RearrangementModelServer:
                 scene = trimesh.Scene()
                 # add the coordinate frame first
                 geom = trimesh.creation.axis(0.01)
-                scene.add_geometry(geom)
+                # scene.add_geometry(geom)
                 table = trimesh.creation.box(extents=[1.0, 1.0, 0.02])
                 table.apply_translation([0.5, 0, -0.01])
                 table.visual.vertex_colors = [150, 111, 87, 125]
@@ -509,10 +520,22 @@ class RearrangementModelServer:
                 #                    [-0.47073865286968597, 0.4496990781074231, -0.7590624874434035, 0.10599949513304896],
                 #                    [0.5172018981497449, -0.5563608962206371, -0.6503574015161744, 5.32058832987803],
                 #                    [0.0, 0.0, 0.0, 1.0]])
-                # RT_4x4 = np.linalg.inv(RT_4x4)
-                # RT_4x4 = RT_4x4 @ np.diag([1, -1, -1, 1])
-                # scene.camera_transform = RT_4x4
-                scene.show()
+                RT_4x4 = np.array([[-0.005378542346186285, 0.9998161380851034, -0.018405469481106367, -0.00822956735846642],
+                                   [0.9144495496588564, -0.0025306059632757057, -0.40469200283941076, -0.5900283926985573],
+                                   [-0.40466417238365116, -0.019007526352692254, -0.9142678062422447, 1.636231273015809],
+                                   [0.0, 0.0, 0.0, 1.0]])
+                RT_4x4 = np.linalg.inv(RT_4x4)
+                RT_4x4 = RT_4x4 @ np.diag([1, -1, -1, 1])
+                scene.camera_transform = RT_4x4
+                if self.visualize:
+                    scene.show()
+                if self.save_dir is not None:
+                    png = scene.save_image(resolution=[1000, 1000],
+                                           visible=True)
+                    with open(save_file_temp.format(bi), 'wb') as f:
+                        f.write(png)
+                        f.close()
+                    rospy.sleep(1.0)
 
         # obj_xyzs: B, N, P, 3
         # struct_pose: B, 1, 4, 4
@@ -534,10 +557,10 @@ if __name__ == '__main__':
     try:
         rospy.init_node('semantic_rearrangement')
         RearrangementModelServer(model_dir="/home/weiyu/data_drive/models_0914/diffuser/model",
-                                 discriminator_model_dir="/home/weiyu/data_drive/models_0914/discriminator_lan_local_shape_param/best_model", discriminator_score_weight=1.0,
-                                 collision_model_dir=None, collision_score_weight=0.0,
-                                 num_samples=50, num_elite=25, discriminator_inference_batch_size=10,
-                                 visualize=True)
+                                 # discriminator_model_dir="/home/weiyu/data_drive/models_0914/discriminator_lan_local_shape_param/best_model", discriminator_score_weight=1.0,
+                                 collision_model_dir="/home/weiyu/data_drive/models_0914/collision/best_model", collision_score_weight=1.0,
+                                 num_samples=50, num_elite=10, discriminator_inference_batch_size=5,
+                                 visualize=True) #, save_dir="/home/weiyu/Desktop/robot_pc_rearrangement/pc_rearrangements")
         rospy.spin()
     except rospy.ROSInterruptException:
         print("program interrupted before completion", file=sys.stderr)
