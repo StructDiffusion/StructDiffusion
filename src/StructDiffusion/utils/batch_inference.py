@@ -1,3 +1,4 @@
+import os
 import torch
 import pytorch3d.transforms as tra3d
 
@@ -388,7 +389,7 @@ def fit_gaussians(samples, sigma_eps=0.01):
     return mus, sigmas
 
 
-def visualize_batch_pcs(obj_xyzs, B, N, P, verbose=True, limit_B=None):
+def visualize_batch_pcs(obj_xyzs, B, N, P, verbose=True, limit_B=None, save_dir=None):
     if limit_B is None:
         limit_B = B
 
@@ -404,7 +405,16 @@ def visualize_batch_pcs(obj_xyzs, B, N, P, verbose=True, limit_B=None):
         if verbose:
             print("example {}".format(bi))
             print(vis_obj_xyz.shape)
-        show_pcs_color_order([xyz[:, :3] for xyz in vis_obj_xyz], None, visualize=True, add_coordinate_frame=True, add_table=False)
+
+        if save_dir:
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            save_path = os.path.join(save_dir, "b{}.jpg".format(bi))
+            show_pcs_color_order([xyz[:, :3] for xyz in vis_obj_xyz], None, visualize=False, add_coordinate_frame=False,
+                                 side_view=True, save_path=save_path)
+        else:
+            show_pcs_color_order([xyz[:, :3] for xyz in vis_obj_xyz], None, visualize=True, add_coordinate_frame=False,
+                                 side_view=True)
 
 
 def pc_normalize_batch(pc):

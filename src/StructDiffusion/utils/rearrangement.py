@@ -805,13 +805,18 @@ def open3d_set_side_view(vis):
     # ctr.set_up([ 0.47073865286968591, -0.44969907810742304, 0.75906248744340343 ])
     # ctr.set_zoom(3)
 
-    ctr.set_front([-0.86019269757539152, 0.40355968763418076, 0.31178213796587784])
-    ctr.set_lookat([0.28810001969337462, 0.10746435821056366, 0.23499999999999999])
-    ctr.set_up([0.30587875107201218, -0.080905438599338214, 0.94862663869811026])
-    ctr.set_zoom(0.69999999999999996)
+    # ctr.set_front([-0.86019269757539152, 0.40355968763418076, 0.31178213796587784])
+    # ctr.set_lookat([0.28810001969337462, 0.10746435821056366, 0.23499999999999999])
+    # ctr.set_up([0.30587875107201218, -0.080905438599338214, 0.94862663869811026])
+    # ctr.set_zoom(0.69999999999999996)
+
+    ctr.set_front([0.40466417238365116, 0.019007526352692254, 0.91426780624224468])
+    ctr.set_lookat([0.61287602731590907, 0.010181152776318789, -0.073166629933366326])
+    ctr.set_up([-0.91444954965885639, 0.0025306059632757057, 0.40469200283941076])
+    ctr.set_zoom(0.84000000000000008)
 
     init_param = ctr.convert_to_pinhole_camera_parameters()
-    # print("camera extrinsic", init_param.extrinsic.tolist())
+    print("camera extrinsic", init_param.extrinsic.tolist())
 
 
 def save_pcs(xyz, rgb, save_path=None, return_buffer=False, add_coordinate_frame=False, side_view=False, add_table=True):
