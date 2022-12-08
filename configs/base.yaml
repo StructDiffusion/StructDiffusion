@@ -1,0 +1,3 @@
+base_dirs:
+  experiment: /home/weiyu/Research/StructDiffusion/experiments
+  data: /home/weiyu/data_drive/data_new_objects

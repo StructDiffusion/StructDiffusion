@@ -1,0 +1,21 @@
+random_seed: 0
+structure_type: tower
+generator_model_dir: /home/weiyu/Research/intern/semantic-rearrangement/models/actor_vae_language_all_shapes_new_stacking/best_model
+data_split: train
+data_root: /home/weiyu/data_drive/physics_eval_1016/vae_collision_stacking
+collision_model_dir: /home/weiyu/Research/intern/semantic-rearrangement/experiments/20220809/20220809-002824/best_model
+collision_score_weight: 1.0
+discriminator_score_weight: 0.0
+num_samples: 100
+num_elite: 1
+discriminator_inference_batch_size: 20
+assets_path: /home/weiyu/Research/intern/brain_gym/assets/urdf
+object_model_dir: /home/weiyu/data_drive/structformer_assets/housekeep_custom_handpicked_small
+redirect_stdout: True
+shuffle: False
+max_num_eval: 100
+visualize: False
+override_data_dirs:
+  - /home/weiyu/data_drive/data_housekeep_custom/tower/result
+override_index_dirs:
+  - index
