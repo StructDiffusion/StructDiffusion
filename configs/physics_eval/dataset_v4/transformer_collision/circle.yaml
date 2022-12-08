@@ -1,0 +1,23 @@
+random_seed: 0
+structure_type: circle
+generator_model_dir: /home/weiyu/Research/intern/semantic-rearrangement/experiments/20220814-223710/best_model
+data_split: train
+data_root: /home/weiyu/data_drive/physics_eval_0914/transformer_collision_circle
+collision_model_dir: /home/weiyu/Research/intern/semantic-rearrangement/experiments/20220809/20220809-002824/best_model
+collision_score_weight: 1.0
+discriminator_score_weight: 0.0
+ce_num_iteration: 1
+ce_num_samples: 100
+ce_num_elite: 1
+ce_num_best_so_far: 1
+discriminator_inference_batch_size: 20
+assets_path: /home/weiyu/Research/intern/brain_gym/assets/urdf
+object_model_dir: /home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_v4
+redirect_stdout: True
+shuffle: False
+max_num_eval: 100
+visualize: False
+override_data_dirs:
+  - /home/weiyu/data_drive/data_test_objects/circle_data/result
+override_index_dirs:
+  - index
