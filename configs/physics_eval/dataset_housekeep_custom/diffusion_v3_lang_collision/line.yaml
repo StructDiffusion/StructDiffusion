@@ -1,21 +1,21 @@
 random_seed: 0
 structure_type: line
-generator_model_dir: /home/weiyu/Research/intern/StructDiffuser/experiments/20220903-222727/model
+generator_model_dir: ${base.models.diffusion}
 data_split: train
-data_root: /home/weiyu/data_drive/physics_eval_1016/diffuser_line_collision
-collision_model_dir: /home/weiyu/Research/intern/semantic-rearrangement/experiments/20220809/20220809-002824/best_model
+data_root: ${base.dirs.experiment}/diffusion_line_collision
+collision_model_dir: ${base.models.collision}
 collision_score_weight: 1.0
 discriminator_score_weight: 0.0
 num_samples: 100
 num_elite: 1
 discriminator_inference_batch_size: 24
-assets_path: /home/weiyu/Research/intern/brain_gym/assets/urdf
-object_model_dir: /home/weiyu/data_drive/structformer_assets/housekeep_custom_handpicked_small
-redirect_stdout: True
+assets_path: ${base.assets_path}
+object_model_dir: ${base.object_model_dir}
+redirect_stdout: ${base.redirect_stdout}
 shuffle: False
-max_num_eval: 100
-visualize: False
+max_num_eval: ${base.max_num_eval}
+visualize: ${base.visualize}
 override_data_dirs:
-  - /home/weiyu/data_drive/data_housekeep_custom/line/result
+  - ${base.dirs.data}/line/result
 override_index_dirs:
   - index

@@ -17,22 +17,35 @@ pip install -e .
 - `h5py==2.10`: this specific version is needed.
 - `omegaconfg==1.4.1`: some functions used in this repo are from newer versions
 
+## Dependencies for Evaluation in the Physics Simulator
+We will use PyBullet and NVISII for physics evaluation. 
+
 ## Data
-- Training rearrangement sequences
-  - Circle
-  - Stacking
-  - Table Setting
-  - Line
-- Testing rearrangement scenes
-- Object Models:
-- Pretrained Models:
+- [Training rearrangement sequences](https://www.dropbox.com/s/v6dx9o7n7xub094/training_data.zip?dl=0)
+- [Testing rearrangement scenes](https://www.dropbox.com/s/colp3l5v5tpnnne/testing_data.zip?dl=0)
+- [Object Models](https://www.dropbox.com/s/3awy4aewf0afslb/models.zip?dl=0)
+- [Pretrained Models](https://www.dropbox.com/s/cnv91p05s725lyv/housekeep_custom_handpicked_small.zip?dl=0)
 
 ## Quick Start
-- Download the test split of the dataset from [this link](https://drive.google.com/file/d/1e76qJbBJ2bKYq0JzDSRWZjswySX1ftq_/view?usp=sharing) and unzip to the `$STRUCTFORMER/data_new_objects_test_split`
-- Train the model with `src/training/train_diffuser_v4_template_language.py` and run sampling with `src/StructDiffusion/evaluation/infer_diffuser_v4_template_language.py`.
+
+### Training the Diffusion Model Conditioned on Word Tokens
+- Required data: [Training rearrangement sequences](https://www.dropbox.com/s/v6dx9o7n7xub094/training_data.zip?dl=0)
+- Modify the config file [base.yaml](configs/base.yaml) based on where the training data is stored and where you want to store the trained model.
+- You can change params of the model in [diffuser_v3_lang.yaml](configs/diffuser_v3_lang.yaml).
+- Train the model with [train_diffuser_v3_lang.py](src/StructDiffusion/training/train_diffuser_v3_lang.py). The training progress can be monitored with `tensorboard`. 
+- Running the model on test split (with known objects) using [infer_diffuser_v3_lang.py](src/StructDiffusion/evaluation/infer_diffuser_v3_lang.py)
+
+### Evaluating on Novel Objects in the Physics Simulator
+- Required data: [Testing rearrangement scenes](https://www.dropbox.com/s/colp3l5v5tpnnne/testing_data.zip?dl=0), [Object Models](https://www.dropbox.com/s/3awy4aewf0afslb/models.zip?dl=0), [Pretrained Models](https://www.dropbox.com/s/cnv91p05s725lyv/housekeep_custom_handpicked_small.zip?dl=0) or models you trained
+- Modify the config file [base.yaml](configs/physics_eval/dataset_housekeep_custom/base.yaml)
+- To test the diffusion model, use [eval_diffusion_v3_lang.py](src/StructDiffusion/physics_eval/Feval_diffusion_v3_lang.py) and config files in [diffusion_v3_lang](configs/physics_eval/dataset_housekeep_custom/diffusion_v3_lang).
+- To test the diffusion model with the collision model or structure discriminator, use [eval_diffusion_v3_lang_lan_local_shape_param_discriminator_collision_detector.py](src/StructDiffusion/physics_eval/eval_diffusion_v3_lang_lan_local_shape_param_discriminator_collision_detector.py) and config files in [diffusion_v3_lang_collision](configs/physics_eval/dataset_housekeep_custom/diffusion_v3_lang_collision) and [diffusion_v3_lang_discriminator](configs/physics_eval/dataset_housekeep_custom/diffusion_v3_lang_discriminator)
+- For batch testing, [run_tests.sh](src/StructDiffusion/physics_eval/run_tests.sh) can be helpful.
 
 ## Notes
 - List access with `zip()` does not work well with omegaconf variables.
+- Config loading has not been updated for baselines
+- 
 
 ## Run on Robot
 - See the [robot readme](./src/robot/README.md)

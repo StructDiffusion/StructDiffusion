@@ -18,7 +18,7 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
             assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
             object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_large",
             redirect_stdout=False, shuffle=False, summary_writer=None, max_num_eval=10, visualize=False,
-            override_data_dirs=None, override_index_dirs=None, physics_eval_early_stop=True):
+            override_data_dirs=None, override_index_dirs=None, physics_eval_early_stop=True, **kwargs):
 
     np.random.seed(random_seed)
     torch.manual_seed(random_seed)
@@ -178,12 +178,18 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="eval")
+    parser.add_argument("--base_config_file", help='base config yaml file',
+                        default='../../../configs/physics_eval/dataset_housekeep_custom/base.yaml',
+                        type=str)
     parser.add_argument("--config_file", help='config yaml file',
                         default='../../../configs/physics_eval/dataset_housekeep_custom/diffusion_v3_lang/circle.yaml',
                         type=str)
     args = parser.parse_args()
+    assert os.path.exists(args.base_config_file), "Cannot find base config yaml file at {}".format(args.config_file)
     assert os.path.exists(args.config_file), "Cannot find config yaml file at {}".format(args.config_file)
+    base_cfg = OmegaConf.load(args.base_config_file)
     cfg = OmegaConf.load(args.config_file)
+    cfg = OmegaConf.merge(base_cfg, cfg)
 
     cfg.physics_eval_early_stop = False
 

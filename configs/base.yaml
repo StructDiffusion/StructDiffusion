@@ -1,3 +1,5 @@
 base_dirs:
-  experiment: /home/weiyu/Research/StructDiffusion/experiments
-  data: /home/weiyu/data_drive/data_new_objects
+  # a new dir will be created for each training run
+  experiment: /home/weiyu/data_drive/StructDiffusion/experiments
+  # where the training data is stored
+  data: /home/weiyu/data_drive/StructDiffusion/training_data

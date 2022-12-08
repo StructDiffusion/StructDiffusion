@@ -1,11 +1,11 @@
 random_seed: 0
-structure_type: circle
+structure_type: tower
 generator_model_dir: ${base.models.diffusion}
 data_split: train
-data_root: ${base.dirs.experiment}/diffusion_circle_collision
-collision_model_dir: ${base.models.collision}
-collision_score_weight: 1.0
-discriminator_score_weight: 0.0
+data_root: ${base.dirs.experiment}/diffusion_tower_discriminator
+discriminator_model_dir: ${base.models.discriminator}
+collision_score_weight: 0.0
+discriminator_score_weight: 1.0
 num_samples: 100
 num_elite: 1
 discriminator_inference_batch_size: 24
@@ -16,6 +16,6 @@ shuffle: False
 max_num_eval: ${base.max_num_eval}
 visualize: ${base.visualize}
 override_data_dirs:
-  - ${base.dirs.data}/circle/result
+  - ${base.dirs.data}/tower/result
 override_index_dirs:
   - index

@@ -1,0 +1,21 @@
+base:
+  dirs:
+    # base dir for physics evaluation
+    experiment:  /home/weiyu/data_drive/temp
+    # where the testing scene is stored
+    data: /home/weiyu/data_drive/StructDiffusion/testing_data
+  # dirs for the trained models
+  models:
+    diffusion: /home/weiyu/Research/intern/StructDiffuser/experiments/20220903-222727/model
+    collision: /home/weiyu/data_drive/StructDiffusion/models/collision/best_model
+    discriminator: /home/weiyu/data_drive/StructDiffusion/models/structure_discriminator/best_model
+  # urdfs for the environment and robot, included in the rearrangement_gym repo
+  assets_path: /home/weiyu/Research/StructDiffusion/rearrangement_gym/assets/urdf
+  # where the object models are stored
+  object_model_dir: /home/weiyu/data_drive/StructDiffusion/housekeep_custom_handpicked_small
+  # whether to log evaluation info to a file. Set this to True for batch evaluation.
+  redirect_stdout: False
+  # the number of scenes that will be tested
+  max_num_eval: 100
+  # whether to visualize prediction. Set this to False for batch evaluation.
+  visualize: True
