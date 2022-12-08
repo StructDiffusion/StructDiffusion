@@ -179,7 +179,7 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="eval")
     parser.add_argument("--config_file", help='config yaml file',
-                        default='../configs/physics_eval/diffusion_v3_lang/dinner.yaml',
+                        default='../../../configs/physics_eval/dataset_housekeep_custom/diffusion_v3_lang/circle.yaml',
                         type=str)
     args = parser.parse_args()
     assert os.path.exists(args.config_file), "Cannot find config yaml file at {}".format(args.config_file)

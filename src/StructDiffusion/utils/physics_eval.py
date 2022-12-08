@@ -284,3 +284,12 @@ def fit_gaussians(samples, sigma_eps=0.01):
     # mus: [number of individual gaussians]
     # sigmas: [number of individual gaussians]
     return mus, sigmas
+
+
+def pc_normalize_batch(pc):
+    # pc: B, num_scene_pts, 3
+    centroid = torch.mean(pc, dim=1)  # B, 3
+    pc = pc - centroid[:, None, :]
+    m = torch.max(torch.sqrt(torch.sum(pc ** 2, dim=2)), dim=1)[0]
+    pc = pc / m[:, None, None]
+    return pc
