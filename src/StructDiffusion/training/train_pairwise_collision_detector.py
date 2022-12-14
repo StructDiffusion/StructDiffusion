@@ -294,7 +294,8 @@ def run_model(cfg):
 
     data_cfg = cfg.dataset
 
-    full_dataset = PairwiseCollisionDataset(data_cfg.urdf_pc_idx_file,
+    full_dataset = PairwiseCollisionDataset(data_cfg.dirs, data_cfg.index_dirs,
+                                            data_cfg.urdf_pc_idx_file,
                              data_cfg.collision_data_dir,
                              num_pts=data_cfg.num_pts,
                              num_scene_pts=data_cfg.num_scene_pts,

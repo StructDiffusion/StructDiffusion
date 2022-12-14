@@ -34,13 +34,13 @@ def load_pairwise_collision_data(h5_filename):
 
 class PairwiseCollisionDataset(torch.utils.data.Dataset):
 
-    def __init__(self, urdf_pc_idx_file, collision_data_dir, random_rotation=True, data_augmentation=False, num_pts=1024, debug=False, normalize_pc=True, num_scene_pts=2048):
+    def __init__(self, data_roots, index_roots, urdf_pc_idx_file, collision_data_dir, random_rotation=True, data_augmentation=False, num_pts=1024, debug=False, normalize_pc=True, num_scene_pts=2048):
 
         # load dictionary mapping from urdf to list of pc data, each sample is
         #   {"step_t": step_t, "obj": obj, "filename": filename}
         if urdf_pc_idx_file is not None:
             if not os.path.exists(urdf_pc_idx_file):
-                self.urdf_to_pc_data = self.create_urdf_pc_idxs(urdf_pc_idx_file)
+                self.urdf_to_pc_data = self.create_urdf_pc_idxs(urdf_pc_idx_file, data_roots, index_roots)
             else:
                 with open(urdf_pc_idx_file, "rb") as fh:
                     self.urdf_to_pc_data = pickle.load(fh)
@@ -105,14 +105,14 @@ class PairwiseCollisionDataset(torch.utils.data.Dataset):
 
         return positive_data + negative_data
 
-    def create_urdf_pc_idxs(self, urdf_pc_idx_file):
+    def create_urdf_pc_idxs(self, urdf_pc_idx_file, data_roots, index_roots):
         print("Load pc data")
-        data_roots = []
-        index_roots = []
-        for shape, index in [("stacking", "index_10k"), ("circle", "index_10k"), ("line", "index_10k"),
-                             ("dinner", "index_10k")]:
-            data_roots.append("/home/weiyu/data_drive/data_new_objects/examples_{}_new_objects/result".format(shape))
-            index_roots.append(index)
+        # data_roots = []
+        # index_roots = []
+        # for shape, index in [("stacking", "index_10k"), ("circle", "index_10k"), ("line", "index_10k"),
+        #                      ("dinner", "index_10k")]:
+        #     data_roots.append("/home/weiyu/data_drive/data_new_objects/examples_{}_new_objects/result".format(shape))
+        #     index_roots.append(index)
 
         arrangement_steps = []
         for split in ["train"]:
