@@ -73,7 +73,7 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
         discriminator_normalize_pc = False
 
     if collision_score_weight > 0:
-        collision_inference = CollisionInference(collision_model_dir)
+        collision_inference = CollisionInference(collision_model_dir, empty_dataset=True)
         collision_model = collision_inference.model
         collision_cfg = collision_inference.cfg
         collision_model.eval()

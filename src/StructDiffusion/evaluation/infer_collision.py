@@ -12,6 +12,13 @@ class CollisionInference:
         cfg, model, _, _, _ = collision_model.load_model(model_dir)
 
         data_cfg = cfg.dataset
+
+        if empty_dataset:
+            data_cfg.dirs = []
+            data_cfg.index_dirs = []
+            data_cfg.urdf_pc_idx_file = None
+            data_cfg.collision_data_dir = None
+
         full_dataset = collision_dataset.PairwiseCollisionDataset(data_cfg.dirs, data_cfg.index_dirs, data_cfg.urdf_pc_idx_file,
                                                 data_cfg.collision_data_dir,
                                                 num_pts=data_cfg.num_pts,
