@@ -400,21 +400,21 @@ def run_model(cfg):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run a simple model")
+    parser.add_argument("--base_config_file", help='base config yaml file',
+                        default='../../../configs/base.yaml',
+                        type=str)
     parser.add_argument("--config_file", help='config yaml file',
-                        default='configs/new_discriminators/sturcture_predictor_3d_planar_small_shapes_PCT_random_sampling_more_pts_lan_local_shape_param_24k.yaml',
+                        default='../../../configs/sturcture_predictor_3d_planar_small_shapes_PCT_random_sampling_more_pts_lan_local_shape_param.yaml',
                         type=str)
     args = parser.parse_args()
-
+    assert os.path.exists(args.base_config_file), "Cannot find base config yaml file at {}".format(args.config_file)
     assert os.path.exists(args.config_file), "Cannot find config yaml file at {}".format(args.config_file)
-
     os.environ["DATETIME"] = time.strftime("%Y%m%d-%H%M%S")
+    base_cfg = OmegaConf.load(args.base_config_file)
     cfg = OmegaConf.load(args.config_file)
-
+    cfg = OmegaConf.merge(base_cfg, cfg)
     if not os.path.exists(cfg.experiment_dir):
         os.makedirs(cfg.experiment_dir)
-
     OmegaConf.save(cfg, os.path.join(cfg.experiment_dir, "config.yaml"))
 
     run_model(cfg)
-
-    # continue_training(cfg)

@@ -1,0 +1,52 @@
+experiment_dir: ${base_dirs.experiment}/${env:DATETIME}
+
+random_seed: 1
+device: 0
+save_model: True
+save_best_model: True
+# important, whether we should do classification or regression
+regression_mode: False
+
+dataset:
+  dirs:
+    - ${base_dirs.data}/examples_circle_new_objects/result
+    - ${base_dirs.data}/examples_line_new_objects/result
+    - ${base_dirs.data}/examples_stacking_new_objects/result
+    - ${base_dirs.data}/examples_dinner_new_objects/result
+  index_dirs:
+    - index_10k
+    - index_10k
+    - index_10k
+    - index_10k
+  vocab_dir: ${base_dirs.data}/type_vocabs_coarse.json
+  max_num_objects: 7
+  max_num_shape_parameters: 2
+  oversample_positive: False
+  num_random_negative_examples: 1
+  pertubation_mode: 3d_planar
+  min_translation: 0.01
+  max_translation: 0.08
+  min_rotation: 0.1
+  max_rotation: 0.5
+  num_pts: 1024
+  num_scene_pts: 4096
+  random_structure_rotation: True
+  num_objects_to_include:
+  data_augmentation: False
+  include_env_pc: False
+  num_env_pts:
+  normalize_pc: True
+
+  batch_size: 32 # 6GB
+  num_workers: 4
+  pin_memory: True
+
+model:
+  name: structure_predictor_whole_scene_lan_local_shape_param
+  use_focal_loss: True
+  focal_loss_gamma: 2
+  pct_random_sampling: True
+
+training:
+  learning_rate: 0.0001
+  max_epochs: 200

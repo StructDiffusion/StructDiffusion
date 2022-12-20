@@ -1,0 +1,32 @@
+experiment_dir: ${base_dirs.experiment}/${env:DATETIME}
+
+random_seed: 1
+device: 0
+save_model: True
+save_best_model: True
+# important, whether we should do classification or regression
+regression_mode: False
+
+dataset:
+  urdf_pc_idx_file: ${base_dirs.pairwise_collision_data}/urdf_pc_idx.pkl
+  collision_data_dir: ${base_dirs.pairwise_collision_data}
+  max_num_objects: 2
+  num_pts: 1024
+  num_scene_pts: 2048
+  random_rotation: True
+  normalize_pc: True
+  data_augmentation: False
+
+  batch_size: 32 # 6GB
+  num_workers: 4
+  pin_memory: True
+
+model:
+  name: pairwise_collision_detector
+  use_focal_loss: True
+  focal_loss_gamma: 2
+  pct_random_sampling: True
+
+training:
+  learning_rate: 0.0001
+  max_epochs: 200

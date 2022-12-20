@@ -3,3 +3,4 @@ base_dirs:
   experiment: /home/weiyu/data_drive/StructDiffusion/experiments
   # where the training data is stored
   data: /home/weiyu/data_drive/StructDiffusion/training_data
+  pairwise_collision_data: /home/weiyu/data_drive/pairwise_collision_data
