@@ -110,7 +110,11 @@ def get_diffusion_variables(struct_xyztheta_inputs, obj_xyztheta_inputs):
 
 def get_struct_objs_poses(x):
 
-    assert x.is_cuda, "compute_rotation_matrix_from_ortho6d requires input to be on gpu"
+    on_gpu = x.is_cuda
+    if not on_gpu:
+        x = x.cuda()
+
+    # assert x.is_cuda, "compute_rotation_matrix_from_ortho6d requires input to be on gpu"
     device = x.device
 
     # important: the noisy x can go out of bounds
@@ -132,6 +136,10 @@ def get_struct_objs_poses(x):
 
     struct_pose = x_full[:, 0].unsqueeze(1) # B, 1, 4, 4
     pc_poses_in_struct = x_full[:, 1:] # B, N, 4, 4
+
+    if not on_gpu:
+        struct_pose = struct_pose.cpu()
+        pc_poses_in_struct = pc_poses_in_struct.cpu()
 
     return struct_pose, pc_poses_in_struct
 
