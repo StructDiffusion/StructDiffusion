@@ -17,7 +17,7 @@ class DropoutSampler(torch.nn.Module):
         x = F.relu(self.linear(x))
         if self.dropout_rate > 0:
             x = F.dropout(x, self.dropout_rate)
-        x = F.relu(self.linear(x))
+        x = F.relu(self.linear2(x))
         # x = F.dropout(x, self.dropout_rate)
         return self.predict(x)
 
