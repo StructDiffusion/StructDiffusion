@@ -123,10 +123,11 @@ def random_move_obj_xyz(obj_xyz,
         random_rotation = tra.euler_matrix(0, 0, random_rotation)
 
     if return_perturbed_obj_xyzs:
-        xyz_mean = np.mean(obj_xyz, axis=0)
-        new_obj_xyz = obj_xyz - xyz_mean
-        new_obj_xyz = trimesh.transform_points(new_obj_xyz, random_rotation, translate=False)
-        new_obj_xyz = new_obj_xyz + xyz_mean + random_translation
+        raise Exception("return_perturbed_obj_xyzs=True is no longer supported")
+        # xyz_mean = np.mean(obj_xyz, axis=0)
+        # new_obj_xyz = obj_xyz - xyz_mean
+        # new_obj_xyz = trimesh.transform_points(new_obj_xyz, random_rotation, translate=False)
+        # new_obj_xyz = new_obj_xyz + xyz_mean + random_translation
     else:
         new_obj_xyz = obj_xyz
 
