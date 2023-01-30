@@ -377,7 +377,7 @@ def validate_model(cfg, model, data_iter, noise_schedule, epoch, device, summary
                 position_index = batch["position_index"].to(device, non_blocking=True)
                 xyzs = batch["xyzs"].to(device, non_blocking=True)
                 struct_position_index = batch["struct_position_index"].to(device, non_blocking=True)
-                labels = batch["has_collision"].to(device, non_blocking=True)[:, None]
+                labels = batch["has_collision"].to(device, non_blocking=True)
 
                 # pad mask
                 object_pad_mask = batch["obj_pad_mask"].to(device, non_blocking=True)
