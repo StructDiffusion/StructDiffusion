@@ -10,7 +10,7 @@ import json
 import random
 
 # Local imports
-from StructDiffusion.utils.rearrangement import show_pcs, get_pts, combine_and_sample_xyzs, random_move_obj_xyzs, array_to_tensor
+from StructDiffusion.utils.rearrangement import show_pcs, get_pts, combine_and_sample_xyzs, random_move_obj_xyzs, array_to_tensor, save_dict_to_h5, load_dict_from_h5
 from StructDiffusion.data.tokenizer import Tokenizer
 from StructDiffusion.data.MeshSceneViewer import MeshSceneViewer
 
@@ -19,14 +19,14 @@ import StructDiffusion.utils.brain2.image as img
 import StructDiffusion.utils.transformations as tra
 
 
-class SemanticArrangementDataset(torch.utils.data.Dataset):
+class CollisionDataGenerator(torch.utils.data.Dataset):
 
     def __init__(self, data_roots, index_roots, split, tokenizer,
                  min_translation, max_translation, min_rotation, max_rotation, perturbation_mode,
                  num_random_perturbations_per_positive=1, oversample_positive=False,
                  max_num_objects=11, max_num_shape_parameters=7,
                  num_pts=1024, filter_num_moved_objects_range=None, debug=False, shuffle_object_index=False,
-                 data_augmentation=True, mesh_scene_viewer=None):
+                 data_augmentation=True, mesh_scene_viewer=None, save_dir=None):
         """
         Note: setting filter_num_moved_objects_range=[k, k] and max_num_objects=k will create no padding for target objs
         :param shuffle_object_index: whether to shuffle the positions of target objects and other objects in the sequence
@@ -71,23 +71,41 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
         print("{} valid sequences".format(len(self.arrangement_data)))
 
         # create positive and negative examples
-        # each data point is a tuple of (filename, step_t, perturbation_label), where label is True or False
+        # each data point is a tuple of (filename, step_t, perturbation_label, perturbation id), where label is True or False
         arrangement_data = []
         print("Adding {} perturbations per arrangement step".format(num_random_perturbations_per_positive))
         for filename, step_t in self.arrangement_data:
 
             # sample n negative examples from each step
-            for _ in range(num_random_perturbations_per_positive):
-                arrangement_data.append((filename, step_t, True))
+            for pid in range(num_random_perturbations_per_positive):
+                arrangement_data.append((filename, step_t, True, pid))
 
             if not oversample_positive:
-                arrangement_data.append((filename, step_t, False))
+                arrangement_data.append((filename, step_t, False, 0))
             else:
                 # balance positive and negative examples
                 for _ in range(num_random_perturbations_per_positive):
-                    arrangement_data.append((filename, step_t, False))
+                    arrangement_data.append((filename, step_t, False, 0))
         print("{} original and perturbed examples in total".format(len(arrangement_data)))
         self.arrangement_data = arrangement_data
+
+        if save_dir:
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            perturbation_setting_file = os.path.join(save_dir, "perturbation_setting.json")
+            if os.path.exists(perturbation_setting_file):
+                raise Exception("perturbation data already exists")
+            with open(perturbation_setting_file, "w") as fh:
+                json.dump({"perturbation_mode": perturbation_mode,
+                           "min_translation": min_translation,
+                           "max_translation": max_translation,
+                           "min_rotation": min_rotation,
+                           "max_rotation": max_rotation,
+                           "data_roots": data_roots,
+                           "index_roots": index_roots,
+                           "num_random_perturbations_per_positive": num_random_perturbations_per_positive,
+                           "oversample_positive": oversample_positive}, fh)
+        self.save_dir = save_dir
 
         # Noise
         self.data_augmentation = data_augmentation
@@ -257,7 +275,7 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
     def get_raw_data(self, idx, inference_mode=False, shuffle_object_index=False):
         # shuffle_object_index can be used to test different orders of objects
 
-        filename, step_t, perturbation_label = self.arrangement_data[idx]
+        filename, step_t, perturbation_label, perturbation_id = self.arrangement_data[idx]
 
         h5 = h5py.File(filename, 'r')
         ids = self._get_ids(h5)
@@ -366,13 +384,10 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
                 show_pcs(perturbed_obj_xyzs, obj_rgbs, add_coordinate_frame=True)
 
         ###################################
-        obj_xyzs = [array_to_tensor(x) for x in obj_xyzs]
-        obj_rgbs = [array_to_tensor(x) for x in obj_rgbs]
-
         # pad data after perturbation because we don't want to perturb padding objects
         for i in range(self.max_num_objects - len(target_objs)):
-            obj_xyzs.append(torch.zeros([1024, 3], dtype=torch.float32))
-            obj_rgbs.append(torch.zeros([1024, 3], dtype=torch.float32))
+            obj_xyzs.append(np.zeros([1024, 3], dtype=np.float32))
+            obj_rgbs.append(np.zeros([1024, 3], dtype=np.float32))
             obj_pad_mask.append(1)
 
         ###################################
@@ -431,9 +446,9 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
                 for goal_pc_pose_in_struct, pm in zip(goal_pc_poses_in_struct, obj_perturbation_matrices):
                     pgpcp = structure_pose @ goal_pc_pose_in_struct
                     perturbed_goal_pc_poses.append(pgpcp)
-                scene = mesh_scene_viewer.load_mesh_scene(target_objs, goal_specification, current_obj_poses,
+                scene = self.mesh_scene_viewer.load_mesh_scene(target_objs, goal_specification, current_obj_poses,
                                                           current_pc_poses, perturbed_goal_pc_poses, visualize=False)
-                has_collision = mesh_scene_viewer.check_scene_collision(scene)
+                has_collision = self.mesh_scene_viewer.check_scene_collision(scene)
 
                 if self.debug:
                     print("scene has collision", has_collision)
@@ -480,6 +495,9 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
                 target_objs = [target_objs[i] for i in shuffle_target_object_indices]
                 current_pc_poses = [current_pc_poses[i] for i in shuffle_object_indices]
 
+        has_collision = int(has_collision)
+        perturbation_label = int(perturbation_label)
+
         datum = {
             "xyzs": obj_xyzs,
             "rgbs": obj_rgbs,
@@ -495,8 +513,8 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
             "struct_pad_mask": struct_pad_mask,
             "t": step_t,
             "filename": filename,
-            "has_collision": int(has_collision),
-            "perturbation_label": int(perturbation_label)
+            "has_collision": has_collision,
+            "perturbation_label": perturbation_label
         }
 
         if inference_mode:
@@ -509,113 +527,26 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
             datum["goal_specification"] = goal_specification
             datum["current_pc_poses"] = current_pc_poses
 
+        if self.save_dir:
+
+            # to be compatible with h5
+            datum["sentence"] = json.dumps(sentence)
+
+            data_id = os.path.splitext(os.path.split(filename)[1])[0][4:]
+            save_filename = os.path.join(self.save_dir, "{}_{}_step{}_perturb{}_id{}_collision{}.h5".format(structure_parameters["type"], data_id, step_t, perturbation_label, perturbation_id, has_collision))
+            save_dict_to_h5(datum, save_filename)
+
+            # revert back
+            datum["sentence"] = sentence
+
         return datum
 
-    # def prepare_test_data(self, obj_xyzs, obj_rgbs, other_obj_xyzs, other_obj_rgbs, structure_parameters, initial_scene=None, ids=None):
-    #
-    #     object_pad_mask = []
-    #     other_object_pad_mask = []
-    #     for obj in obj_xyzs:
-    #         object_pad_mask.append(0)
-    #     for obj in other_obj_xyzs:
-    #         other_object_pad_mask.append(0)
-    #     for i in range(self.max_num_objects - len(obj_xyzs)):
-    #         obj_xyzs.append(torch.zeros([1024, 3], dtype=torch.float32))
-    #         obj_rgbs.append(torch.zeros([1024, 3], dtype=torch.float32))
-    #         object_pad_mask.append(1)
-    #     for i in range(self.max_num_other_objects - len(other_obj_xyzs)):
-    #         other_obj_xyzs.append(torch.zeros([1024, 3], dtype=torch.float32))
-    #         other_obj_rgbs.append(torch.zeros([1024, 3], dtype=torch.float32))
-    #         other_object_pad_mask.append(1)
-    #
-    #     # language instruction
-    #     sentence = []
-    #     sentence_pad_mask = []
-    #     # structure parameters
-    #     # 5 parameters
-    #     if structure_parameters["type"] == "circle" or structure_parameters["type"] == "line":
-    #         sentence.append((structure_parameters["type"], "shape"))
-    #         sentence.append((structure_parameters["rotation"][2], "rotation"))
-    #         sentence.append((structure_parameters["position"][0], "position_x"))
-    #         sentence.append((structure_parameters["position"][1], "position_y"))
-    #         if structure_parameters["type"] == "circle":
-    #             sentence.append((structure_parameters["radius"], "radius"))
-    #         elif structure_parameters["type"] == "line":
-    #             sentence.append((structure_parameters["length"] / 2.0, "radius"))
-    #         for _ in range(5):
-    #             sentence_pad_mask.append(0)
-    #     else:
-    #         sentence.append((structure_parameters["type"], "shape"))
-    #         sentence.append((structure_parameters["rotation"][2], "rotation"))
-    #         sentence.append((structure_parameters["position"][0], "position_x"))
-    #         sentence.append((structure_parameters["position"][1], "position_y"))
-    #         for _ in range(4):
-    #             sentence_pad_mask.append(0)
-    #         sentence.append(("PAD", None))
-    #         sentence_pad_mask.append(1)
-    #
-    #     # placeholder for pose predictions
-    #     obj_x_outputs = [0] * self.max_num_objects
-    #     obj_y_outputs = [0] * self.max_num_objects
-    #     obj_z_outputs = [0] * self.max_num_objects
-    #     obj_theta_outputs = [[0] * 9] * self.max_num_objects
-    #     obj_x_inputs = [0] * self.max_num_objects
-    #     obj_y_inputs = [0] * self.max_num_objects
-    #     obj_z_inputs = [0] * self.max_num_objects
-    #     obj_theta_inputs = [[0] * 9] * self.max_num_objects
-    #     struct_x_inputs = [0]
-    #     struct_y_inputs = [0]
-    #     struct_z_inputs = [0]
-    #     struct_theta_inputs = [[0] * 9]
-    #
-    #     # used to indicate whether the token is an object point cloud or a part of the instruction
-    #     token_type_index = [0] * (self.max_num_shape_parameters) + [1] * (self.max_num_other_objects) + [2] * self.max_num_objects
-    #     position_index = list(range(self.max_num_shape_parameters)) + list(range(self.max_num_other_objects)) + list(range(self.max_num_objects))
-    #     struct_position_index = [0]
-    #     struct_token_type_index = [3]
-    #     struct_pad_mask = [0]
-    #
-    #     datum = {
-    #         "xyzs": obj_xyzs,
-    #         "rgbs": obj_rgbs,
-    #         "object_pad_mask": object_pad_mask,
-    #         "other_xyzs": other_obj_xyzs,
-    #         "other_rgbs": other_obj_rgbs,
-    #         "other_object_pad_mask": other_object_pad_mask,
-    #         "sentence": sentence,
-    #         "sentence_pad_mask": sentence_pad_mask,
-    #         "token_type_index": token_type_index,
-    #         "obj_x_outputs": obj_x_outputs,
-    #         "obj_y_outputs": obj_y_outputs,
-    #         "obj_z_outputs": obj_z_outputs,
-    #         "obj_theta_outputs": obj_theta_outputs,
-    #         "obj_x_inputs": obj_x_inputs,
-    #         "obj_y_inputs": obj_y_inputs,
-    #         "obj_z_inputs": obj_z_inputs,
-    #         "obj_theta_inputs": obj_theta_inputs,
-    #         "position_index": position_index,
-    #         "struct_position_index": struct_position_index,
-    #         "struct_token_type_index": struct_token_type_index,
-    #         "struct_pad_mask": struct_pad_mask,
-    #         "struct_x_inputs": struct_x_inputs,
-    #         "struct_y_inputs": struct_y_inputs,
-    #         "struct_z_inputs": struct_z_inputs,
-    #         "struct_theta_inputs": struct_theta_inputs,
-    #         "t": 0,
-    #         "filename": ""
-    #     }
-    #
-    #     if initial_scene:
-    #         datum["initial_scene"] = initial_scene
-    #     if ids:
-    #         datum["ids"] = ids
-    #
-    #     return datum
 
     @staticmethod
     def convert_to_tensors(datum, tokenizer, robot_mode=False):
 
         if robot_mode:
+            # used to convert data from robot to tensors
             tensors = {
                 "xyzs": torch.stack(datum["xyzs"], dim=0),
                 "obj_pad_mask": torch.LongTensor(datum["obj_pad_mask"]),
@@ -631,8 +562,8 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
             }
         else:
             tensors = {
-                "xyzs": torch.stack(datum["xyzs"], dim=0),
-                "rgbs": torch.stack(datum["rgbs"], dim=0),
+                "xyzs": torch.stack([array_to_tensor(x) for x in datum["xyzs"]], dim=0),
+                "rgbs": torch.stack([array_to_tensor(x) for x in datum["rgbs"]], dim=0),
                 "obj_pad_mask": torch.LongTensor(datum["obj_pad_mask"]),
                 "sentence": torch.LongTensor([tokenizer.tokenize(*i) for i in datum["sentence"]]),
                 "sentence_pad_mask": torch.LongTensor(datum["sentence_pad_mask"]),
@@ -645,8 +576,8 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
                 "struct_xyztheta_inputs": torch.FloatTensor(datum["struct_xyztheta_inputs"]),
                 "t": datum["t"],
                 "filename": datum["filename"],
-                "has_collision": torch.LongTensor([datum["has_collision"]]),
-                "perturbation_label": torch.LongTensor([datum["perturbation_label"]]),
+                "has_collision": torch.FloatTensor([datum["has_collision"]]),
+                "perturbation_label": torch.FloatTensor([datum["perturbation_label"]]),
             }
 
         # for k in tensors:
@@ -718,38 +649,114 @@ def compute_min_max(dataloader):
     print(struct_max)
 
 
-if __name__ == "__main__":
+class CollisionDataset(torch.utils.data.Dataset):
 
+    def __init__(self, save_dir, tokenizer):
+
+        self.tokenizer = tokenizer
+
+        self.save_dir = save_dir
+
+        perturbation_setting_file = os.path.join(save_dir, "perturbation_setting.json")
+        with open(perturbation_setting_file, "r") as fh:
+            perturbation_setting = json.load(fh)
+            print(perturbation_setting)
+
+        # option 1: for each scene, we sample one positive and one negative
+        self.scene_to_data = {}
+        type_to_stats = {}
+        for filename in os.listdir(self.save_dir):
+            if ".h5" in filename:
+                # dinner_00010004_step0_perturb0_id0_collision0.h5
+                structure_type, data_id, step, perturbed, perturb_id, has_collision = os.path.splitext(filename)[0].split("_")
+                step = int(step.split("step")[1])
+                perturbed = int(perturbed.split("perturb")[1])
+                perturb_id = int(perturb_id.split("id")[1])
+                has_collision = int(has_collision.split("collision")[1])
+                scene_id = "{}_{}".format(structure_type, data_id)
+
+                if scene_id not in self.scene_to_data:
+                    # 0 no collision, 1 has collision
+                    self.scene_to_data[scene_id] = {0: [], 1: []}
+                self.scene_to_data[scene_id][has_collision].append(os.path.join(self.save_dir, filename))
+
+                if structure_type not in type_to_stats:
+                    type_to_stats[structure_type] = {0: 0, 1: 0}
+                type_to_stats[structure_type][has_collision] += 1
+
+        print("structure type to number of collision/non-collision scenes", type_to_stats)
+        print("collisions", sum([type_to_stats[t][1] for t in type_to_stats]))
+        print("non-collisions", sum([type_to_stats[t][0] for t in type_to_stats]))
+
+        self.data = []
+        for scene_id in self.scene_to_data:
+            num_collisions = len(self.scene_to_data[scene_id][1])
+            num_no_collisions = len(self.scene_to_data[scene_id][0])
+            # print(scene_id, num_collisions, num_no_collisions)
+
+            if num_collisions > 0 and num_no_collisions > 0:
+                self.data.append((scene_id, 0))
+                self.data.append((scene_id, 1))
+
+    def __len__(self):
+        return len(self.data)
+
+    def get_raw_data(self, idx):
+
+        scene_id, has_collision = self.data[idx]
+
+        filename = np.random.choice(self.scene_to_data[scene_id][has_collision])
+        datum = load_dict_from_h5(filename)
+
+        # revert back
+        datum["sentence"] = json.loads(datum["sentence"])
+
+        return datum
+
+    def __getitem__(self, idx):
+
+        datum = CollisionDataGenerator.convert_to_tensors(self.get_raw_data(idx), self.tokenizer)
+
+        return datum
+
+
+
+def collect_data(debug=False):
     tokenizer = Tokenizer("/home/weiyu/data_drive/data_new_objects/type_vocabs_coarse.json")
 
     data_roots = []
     index_roots = []
-    for shape, index in [("dinner", "index_10k")]: # [("circle", "index_34k"), ("line", "index_42k"), ("tower", "index_13k"), ("dinner", "index_24k")]:
+    for shape, index in [("circle", "index_10k"), ("line", "index_10k"), ("stacking", "index_10k"), ("dinner", "index_10k")]:
         data_roots.append("/home/weiyu/data_drive/data_new_objects/examples_{}_new_objects/result".format(shape))
         index_roots.append(index)
 
-    mesh_scene_viewer = MeshSceneViewer(assets_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_large", cache_mesh=True)
+    mesh_scene_viewer = MeshSceneViewer(
+        assets_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_large", cache_mesh=True)
 
-    dataset = SemanticArrangementDataset(data_roots=data_roots,
+    dataset = CollisionDataGenerator(data_roots=data_roots,
                                          index_roots=index_roots,
                                          split="train", tokenizer=tokenizer,
-                                         min_translation=0.01, max_translation=0.08, min_rotation=0.1, max_rotation=0.5, perturbation_mode="6d",
-                                         num_random_perturbations_per_positive=10, oversample_positive=False,
+                                         # min_translation=0.01, max_translation=0.08, min_rotation=0.1, max_rotation=0.5,
+                                         min_translation=0.0, max_translation=0.1, min_rotation=0.0, max_rotation=np.pi/4,
+                                         perturbation_mode="6d",
+                                         num_random_perturbations_per_positive=1, oversample_positive=False,
                                          max_num_objects=7,
                                          max_num_shape_parameters=5,
                                          num_pts=1024,
                                          filter_num_moved_objects_range=None,  # [5, 5]
                                          data_augmentation=False,
                                          shuffle_object_index=False,
-                                         debug=False, mesh_scene_viewer=mesh_scene_viewer)
+                                         debug=debug, mesh_scene_viewer=mesh_scene_viewer,)
+                                         # save_dir="/home/weiyu/data_drive/StructDiffusion/collision_data")
 
-    # print(len(dataset))
-    # for d in dataset:
-    #     print("\n\n" + "="*100)
+    if debug:
+        print(len(dataset))
+        for d in dataset:
+            print("\n\n" + "=" * 100)
 
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=20, shuffle=False, num_workers=8)
-    for i, d in enumerate(dataloader):
-        print(i)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=128, shuffle=True, num_workers=8)
+    for i, _ in enumerate(tqdm(dataloader)):
+        pass
         # for k in d:
         #     if isinstance(d[k], torch.Tensor):
         #         print("--size", k, d[k].shape)
@@ -758,31 +765,21 @@ if __name__ == "__main__":
         #
         # input("next?")
 
-    # tokenizer = Tokenizer("/home/weiyu/data_drive/data_new_objects/type_vocabs.json")
-    # for shape, index in [("circle", "index_34k"), ("line", "index_42k"), ("tower", "index_13k"), ("dinner", "index_24k")]:
-    #     for split in ["train", "valid", "test"]:
-    #         dataset = SemanticArrangementDataset(data_root="/home/weiyu/data_drive/data_new_objects/examples_{}_new_objects/result".format(shape),
-    #                                              index_root=index,
-    #                                              split=split, tokenizer=tokenizer,
-    #                                              max_num_objects=7,
-    #                                              max_num_other_objects=5,
-    #                                              max_num_shape_parameters=5,
-    #                                              max_num_rearrange_features=0,
-    #                                              max_num_anchor_features=0,
-    #                                              num_pts=1024,
-    #                                              debug=True)
-    #
-    #         for i in range(0, 1):
-    #             d = dataset.get_raw_data(i)
-    #             d = dataset.convert_to_tensors(d, dataset.tokenizer)
-    #             for k in d:
-    #                 if torch.is_tensor(d[k]):
-    #                     print("--size", k, d[k].shape)
-    #             for k in d:
-    #                 print(k, d[k])
-    #             input("next?")
 
-            # dataloader = DataLoader(dataset, batch_size=64, shuffle=False, num_workers=8,
-            #                         collate_fn=SemanticArrangementDataset.collate_fn)
-            # for d in tqdm(dataloader):
-            #     pass
+def run_collision_dataset():
+
+    tokenizer = Tokenizer("/home/weiyu/data_drive/data_new_objects/type_vocabs_coarse.json")
+    dataset = CollisionDataset(save_dir="/home/weiyu/data_drive/StructDiffusion/collision_data", tokenizer=tokenizer)
+
+    # for d in dataset:
+    #     print(d)
+    #     print("\n\n" + "=" * 100)
+    #     input("next?")
+
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=False, num_workers=8)
+    for i, _ in enumerate(tqdm(dataloader)):
+        pass
+
+
+if __name__ == "__main__":
+    collect_data()

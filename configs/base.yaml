@@ -4,3 +4,4 @@ base_dirs:
   # where the training data is stored
   data: /home/weiyu/data_drive/StructDiffusion/training_data
   pairwise_collision_data: /home/weiyu/data_drive/pairwise_collision_data
+  assets_dir: /home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_large
