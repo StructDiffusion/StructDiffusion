@@ -277,6 +277,12 @@ def p_losses(denoise_model, x_start, t, noise=None, loss_type="l1"):
 def train_model(cfg, model, data_iter, noise_schedule, optimizer, warmup, num_epochs, device, save_best_model,
                 summary_writer, grad_clipping=1.0):
 
+    if save_best_model:
+        best_model_dir = os.path.join(cfg.experiment_dir, "best_model")
+        print("best model will be saved to {}".format(best_model_dir))
+        if not os.path.exists(best_model_dir):
+            os.makedirs(best_model_dir)
+
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -352,10 +358,9 @@ def train_model(cfg, model, data_iter, noise_schedule, optimizer, warmup, num_ep
         #                             "struct_x_inputs", "struct_y_inputs", "struct_z_inputs", "struct_theta_inputs"])
         #
         # score = validate(cfg, model, data_iter["valid"], epoch, device)
-        # if save_best_model and score > best_score:
-        #     print("Saving best model so far...")
-        #     best_score = score
-        #     save_model(best_model_dir, cfg, epoch, model)
+        if save_best_model:
+            print("Saving current model so far...")
+            save_model(best_model_dir, cfg, epoch, model)
 
     return model
 
