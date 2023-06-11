@@ -1,57 +1,21 @@
-from __future__ import print_function, division
 import torch
 import numpy as np
 import os
-import argparse
 import pytorch3d.transforms as tra3d
-from brain2.semantic_rearrangement.physics_verification_dinner import verify_datum_in_simulation
 import json
-import warnings
+import argparse
 from omegaconf import OmegaConf
 
-from src.generative_models.try_langevin_actor_vae_3networks_language_all_shapes_discriminator_7 import PriorInference, switch_stdout, visualize_batch_pcs, move_pc_and_create_scene_new, move_pc, convert_bool, save_dict_to_h5, sample_gaussians, fit_gaussians
-import src.train_structure_predictor_9_lan_local_shape_param as discriminator_model
-import dataset_v41_discriminator_env_lan_local_shape_param_return_pose as discriminator_dataset
+# physics eval
+from StructDiffusion.utils.physics_eval import switch_stdout, visualize_batch_pcs, convert_bool, save_dict_to_h5, move_pc_and_create_scene_new, move_pc
+from rearrangement_gym.semantic_rearrangement.physics_verification_dinner import verify_datum_in_simulation
 
-from src.pairwise_collision.test_pairwise_collision_detector import CollisionInference
+# inference
+from StructDiffusion.evaluation.infer_vae import PriorInference
 
-# suppress scikit warnings
-def warn(*args, **kwargs):
-    pass
-warnings.warn = warn
-
-
-class DiscriminatorInference:
-
-    def __init__(self, model_dir, data_split="test", evaluate_each_sample_n_times=1):
-
-        cfg, model, _, _, _, tokenizer = discriminator_model.load_model(model_dir)
-
-        data_cfg = cfg.dataset
-        dataset = discriminator_dataset.SemanticArrangementDataset(data_cfg.dirs, data_cfg.index_dirs, data_split,
-                                                   tokenizer=tokenizer,
-                                                   num_random_negative_examples=data_cfg.num_random_negative_examples,
-                                                   min_translation=data_cfg.min_translation,
-                                                   max_translation=data_cfg.max_translation,
-                                                   min_rotation=data_cfg.min_rotation,
-                                                   max_rotation=data_cfg.max_rotation,
-                                                   max_num_objects=data_cfg.max_num_objects,
-                                                   max_num_shape_parameters=data_cfg.max_num_shape_parameters,
-                                                   num_pts=data_cfg.num_pts,
-                                                   num_scene_pts=data_cfg.num_scene_pts,
-                                                   oversample_positive=data_cfg.oversample_positive,
-                                                   perturbation_mode=data_cfg.pertubation_mode,
-                                                   random_structure_rotation=data_cfg.random_structure_rotation,
-                                                   return_perturbation_score=cfg.regression_mode,
-                                                   num_objects_to_include=data_cfg.num_objects_to_include,
-                                                   data_augmentation=data_cfg.data_augmentation,
-                                                   include_env_pc=data_cfg.include_env_pc,
-                                                   num_env_pts=data_cfg.num_env_pts,
-                                                   normalize_pc=data_cfg.normalize_pc)
-
-        self.model = model
-        self.cfg = cfg
-        self.dataset = dataset
+# discriminators
+from StructDiffusion.evaluation.infer_collision import CollisionInference
+from StructDiffusion.evaluation.infer_discriminator import DiscriminatorInference
 
 
 def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_root,
@@ -64,7 +28,7 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
             object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_large",
             redirect_stdout=False, shuffle=False, summary_writer=None,
              max_num_eval=10, visualize=False,
-            override_data_dirs=None, override_index_dirs=None, physics_eval_early_stop=True):
+            override_data_dirs=None, override_index_dirs=None, physics_eval_early_stop=True, **kwargs):
 
     assert 0 <= collision_score_weight <= 1
     assert 0 <= discriminator_score_weight <= 1
@@ -110,7 +74,7 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
         discriminator_normalize_pc = False
 
     if collision_score_weight > 0:
-        collision_inference = CollisionInference(collision_model_dir)
+        collision_inference = CollisionInference(collision_model_dir, empty_dataset=True)
         collision_model = collision_inference.model
         collision_cfg = collision_inference.cfg
         collision_model.eval()
@@ -410,12 +374,18 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="eval")
+    parser.add_argument("--base_config_file", help='base config yaml file',
+                        default='../../../configs/physics_eval/dataset_housekeep_custom/base.yaml',
+                        type=str)
     parser.add_argument("--config_file", help='config yaml file',
-                        default='../configs/physics_eval/vae_collision/dinner.yaml',
+                        default='../../../configs/physics_eval/dataset_housekeep_custom/vae_collision/line_test.yaml',
                         type=str)
     args = parser.parse_args()
+    assert os.path.exists(args.base_config_file), "Cannot find base config yaml file at {}".format(args.config_file)
     assert os.path.exists(args.config_file), "Cannot find config yaml file at {}".format(args.config_file)
+    base_cfg = OmegaConf.load(args.base_config_file)
     cfg = OmegaConf.load(args.config_file)
+    cfg = OmegaConf.merge(base_cfg, cfg)
 
     cfg.physics_eval_early_stop = False
 

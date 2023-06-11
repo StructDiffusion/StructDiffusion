@@ -3,12 +3,11 @@ import trimesh
 import json
 import os
 import numpy as np
-from src.rearrangement_utils import show_pcs_color_order
+from StructDiffusion.data.tokenizer import Tokenizer
+from StructDiffusion.utils.rearrangement import show_pcs_color_order
+import StructDiffusion.utils.transformations as tra
 import pandas as pd
-import brain2.utils.transformations as tra
 import time
-
-from src.tokenizer import Tokenizer
 
 def load_h5_key(h5, key):
     if key in h5:
@@ -393,14 +392,15 @@ def visualize_all_models():
 
 
 def write_results():
-    root_dir = "/home/weiyu/data_drive/physics_eval_1016"
-    result_dir = "/home/weiyu/Research/intern/semantic-rearrangement/src/physics_eval/results/1016"
-    assets_dir = "/home/weiyu/data_drive/structformer_assets/housekeep_custom_handpicked_small"
-    base_names = sorted(os.listdir(root_dir))
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
+    root_dir = "/home/weiyu/data_drive/physics_eval_0406"
+    save_dir = "/home/weiyu/data_drive/physics_eval_0406/results"
+    # assets_dir = "/home/weiyu/data_drive/StructDiffusion/housekeep_custom_handpicked_small"
 
-    structure_types = ["circle", "stacking", "line", "dinner"]
+    base_names = sorted(os.listdir(root_dir))
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    structure_types = ["circle", "tower", "line", "dinner"]
 
     for structure_type in structure_types:
 
@@ -420,10 +420,11 @@ def write_results():
 
         df = pd.DataFrame.from_dict(method_to_result, orient='index', columns=all_error_types)
         print(df)
-        df.to_excel(os.path.join(result_dir, "{}.xlsx".format(structure_type)))
+        df.to_excel(os.path.join(save_dir, "{}.xlsx".format(structure_type)))
 
         normalized_df = df / df.max()
-        normalized_df.to_excel(os.path.join(result_dir, "{}_norm.xlsx".format(structure_type)))
+        normalized_df.to_excel(os.path.join(save_dir, "{}_norm.xlsx".format(structure_type)))
+
 
 if __name__ == "__main__":
 
@@ -548,12 +549,12 @@ if __name__ == "__main__":
     #     iterate_files_performance(os.path.join(root_dir, base_name, "train"))
     #     # iterate_files(os.path.join(root_dir, base_name, "train"), assets_dir)
 
-    # root_dir = "/home/weiyu/data_drive/physics_eval_1016"
-    # result_dir = "/home/weiyu/Research/intern/semantic-rearrangement/src/physics_eval/results/1016"
-    # assets_dir = "/home/weiyu/data_drive/structformer_assets/housekeep_custom_handpicked_small"
+    # root_dir = "/home/weiyu/data_drive/physics_eval_0131"
+    # save_dir = "/home/weiyu/Research/intern/semantic-rearrangement/src/physics_eval/results/1016"
+    # assets_dir = "/home/weiyu/data_drive/StructDiffusion/housekeep_custom_handpicked_small"
     # base_names = sorted(os.listdir(root_dir))
-    # if not os.path.exists(result_dir):
-    #     os.makedirs(result_dir)
+    # if not os.path.exists(save_dir):
+    #     os.makedirs(save_dir)
     #
     # structure_types = ["circle", "stacking", "line", "dinner"]
     #
@@ -575,14 +576,14 @@ if __name__ == "__main__":
     #
     #     df = pd.DataFrame.from_dict(method_to_result, orient='index', columns=all_error_types)
     #     print(df)
-    #     df.to_excel(os.path.join(result_dir, "{}.xlsx".format(structure_type)))
+    #     df.to_excel(os.path.join(save_dir, "{}.xlsx".format(structure_type)))
     #
     #     normalized_df = df / df.max()
-    #     normalized_df.to_excel(os.path.join(result_dir, "{}_norm.xlsx".format(structure_type)))
+    #     normalized_df.to_excel(os.path.join(save_dir, "{}_norm.xlsx".format(structure_type)))
 
-    # write_results()
+    write_results()
     # visualize_all_models()
 
-    assets_dir = "/home/weiyu/data_drive/structformer_assets/housekeep_custom_handpicked_small"
-    base_dir = "/home/weiyu/data_drive/physics_eval_vae_cem_all_shapes_stacking_lang_discriminator_local_shape_param_test_objects_24k/train"
-    iterate_files(base_dir, assets_dir)
+    # assets_dir = "/home/weiyu/data_drive/structformer_assets/housekeep_custom_handpicked_small"
+    # base_dir = "/home/weiyu/data_drive/physics_eval_vae_cem_all_shapes_stacking_lang_discriminator_local_shape_param_test_objects_24k/train"
+    # iterate_files(base_dir, assets_dir)

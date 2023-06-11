@@ -63,7 +63,10 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
         self.tokenizer = tokenizer
 
         self.arrangement_data = []
-        for data_root, index_root in zip(data_roots, index_roots):
+        # for data_root, index_root in zip(data_roots, index_roots):
+        for ddx in range(len(data_roots)):
+            data_root = data_roots[ddx]
+            index_root = index_roots[ddx]
             arrangement_indices_file = os.path.join(data_root, index_root, "{}_sequence_indices_file.txt".format(split))
             if os.path.exists(arrangement_indices_file):
                 with open(arrangement_indices_file, "r") as fh:

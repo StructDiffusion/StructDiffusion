@@ -3,30 +3,36 @@ import numpy as np
 import os
 import pytorch3d.transforms as tra3d
 import json
+import argparse
+from omegaconf import OmegaConf
 
 # diffusion model
-from StructDiffuser.test_diffuser_v4_template_language import DiffuserInference
+from StructDiffusion.evaluation.infer_diffuser_v4_template_language import DiffuserInference
 
 # physics eval
-from src.generative_models.try_langevin_actor_vae_3networks_language_all_shapes_discriminator_7 import switch_stdout, visualize_batch_pcs, convert_bool, save_dict_to_h5, move_pc_and_create_scene, move_pc, sample_gaussians, fit_gaussians
-from brain2.semantic_rearrangement.physics_verification_dinner import verify_datum_in_simulation
+from StructDiffusion.utils.physics_eval import switch_stdout, visualize_batch_pcs, convert_bool, save_dict_to_h5, move_pc_and_create_scene_new, move_pc
+from rearrangement_gym.semantic_rearrangement.physics_verification_dinner import verify_datum_in_simulation
 
 # discriminators
-from src.physics_eval.eval_diffusion_v3_lang_lan_local_shape_param_discriminator_collision_detector import DiscriminatorInference
-from src.pairwise_collision.test_pairwise_collision_detector import CollisionInference
+from StructDiffusion.evaluation.infer_collision import CollisionInference
+from StructDiffusion.evaluation.infer_discriminator import DiscriminatorInference
 
 
 def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_root,
-             discriminator_model_dir=None, discriminator_model=None, discriminator_cfg=None,
+             discriminator_model_dir=None, discriminator_model=None, discriminator_cfg=None, discriminator_tokenizer=None,
              collision_model_dir=None,
-             test_specific_shape=None,
+             collision_score_weight=0.5, discriminator_score_weight=0.0,
              num_samples=50, num_elite=10,
              discriminator_inference_batch_size=64,
              assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
              object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_large",
              redirect_stdout=False, shuffle=False, summary_writer=None,
              max_num_eval=10, visualize=False,
-             override_data_dirs=None, override_index_dirs=None, physics_eval_early_stop=True):
+             override_data_dirs=None, override_index_dirs=None, physics_eval_early_stop=True, **kwargs):
+
+    assert 0 <= collision_score_weight <= 1
+    # TODO: have the dataset return raw sentence and sentence embedding so we can use the discriminator
+    assert 0 == discriminator_score_weight, "not supporting structure discriminator"
 
     np.random.seed(random_seed)
     torch.manual_seed(random_seed)
@@ -39,6 +45,8 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
+    OmegaConf.save(cfg, os.path.join(save_dir, "experiment_config.yaml"))
+
     if redirect_stdout:
         stdout_filename = os.path.join(data_root, "{}_log.txt".format(data_split))
     else:
@@ -49,28 +57,38 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
     prior_inference = DiffuserInference(generator_model_dir, data_split, override_data_dirs, override_index_dirs, return_full_sentence=True)
     prior_dataset = prior_inference.dataset
 
-    if discriminator_model_dir is not None:
-        discriminator_inference = DiscriminatorInference(discriminator_model_dir)
-        discriminator_model = discriminator_inference.model
-        discriminator_cfg = discriminator_inference.cfg
+    if discriminator_score_weight > 0:
+        if discriminator_model_dir is not None:
+            discriminator_inference = DiscriminatorInference(discriminator_model_dir)
+            discriminator_model = discriminator_inference.model
+            discriminator_cfg = discriminator_inference.cfg
+            discriminator_tokenizer = discriminator_inference.dataset.tokenizer
+        else:
+            assert discriminator_model is not None
+            assert discriminator_cfg is not None
+            assert discriminator_tokenizer is not None
         discriminator_model.eval()
+        discriminator_num_scene_pts = discriminator_cfg.dataset.num_scene_pts
+        discriminator_normalize_pc = discriminator_cfg.dataset.normalize_pc
     else:
-        assert discriminator_model is not None
-        assert discriminator_cfg is not None
+        discriminator_num_scene_pts = None
+        discriminator_normalize_pc = False
 
-    if collision_model_dir is not None:
-        collision_inference = CollisionInference(collision_model_dir)
+    if collision_score_weight > 0:
+        collision_inference = CollisionInference(collision_model_dir, empty_dataset=True)
         collision_model = collision_inference.model
         collision_cfg = collision_inference.cfg
         collision_model.eval()
+        collision_num_pair_pc_pts = collision_cfg.dataset.num_scene_pts
+        collision_normalize_pc = collision_cfg.dataset.normalize_pc
+    else:
+        collision_num_pair_pc_pts = None
+        collision_normalize_pc = False
 
     device = prior_inference.cfg.device
     print("device", device)
 
-    assert prior_inference.cfg.vocab_dir == discriminator_cfg.vocab_dir, "since we are directly copying tokenized sentence from prior dataset to discriminator, the vocabs for the two models need to match"
-
     # params
-    num_scene_pts = discriminator_cfg.dataset.num_scene_pts
     S = num_samples
     B = discriminator_inference_batch_size
 
@@ -103,9 +121,9 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
         ####################################################
         # only keep one copy
 
-        sentence_embedding = sample_tensor_data["sentence_embedding"].to(device).unsqueeze(0)  # 1, sentence_length==1, sentence_embedding_size
-        sentence_pad_mask = sample_tensor_data["sentence_pad_mask"].to(device).unsqueeze(0)  # 1, sentence_length==1
-        position_index = torch.LongTensor(list(range(discriminator_cfg.dataset.max_num_shape_parameters))).to(device).unsqueeze(0)  # 1, sentence_length
+        # sentence_embedding = sample_tensor_data["sentence_embedding"].to(device).unsqueeze(0)  # 1, sentence_length==1, sentence_embedding_size
+        # sentence_pad_mask = sample_tensor_data["sentence_pad_mask"].to(device).unsqueeze(0)  # 1, sentence_length==1
+        # position_index = torch.LongTensor(list(range(discriminator_cfg.dataset.max_num_shape_parameters))).to(device).unsqueeze(0)  # 1, sentence_length
         print("template_sentence", sample_raw_data["template_sentence"])
 
         ####################################################
@@ -179,42 +197,39 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
             batch_struct_pose = struct_pose[cur_batch_idxs_start * N: cur_batch_idxs_end * N]
             batch_current_pc_pose = current_pc_pose[cur_batch_idxs_start * N:cur_batch_idxs_end * N]
 
-            # TODO: set normalize_pc according to discriminator cfg
-            assert discriminator_cfg.dataset.normalize_pc == True
-            subsampled_scene_xyz, new_obj_xyzs, _, obj_pair_xyzs = move_pc_and_create_scene(obj_xyzs,
-                                                                                            batch_obj_params,
-                                                                                            batch_struct_pose,
-                                                                                            batch_current_pc_pose,
-                                                                                            target_object_inds,
-                                                                                            num_scene_pts,
-                                                                                            device,
-                                                                                            normalize_pc=True,
-                                                                                            return_pair_pc=True,
-                                                                                            normalize_pair_pc=True,
-                                                                                            num_pair_pc_pts=collision_cfg.dataset.num_scene_pts)
+            new_obj_xyzs, _, subsampled_scene_xyz, _, obj_pair_xyzs = \
+                move_pc_and_create_scene_new(obj_xyzs, batch_obj_params, batch_struct_pose, batch_current_pc_pose,
+                                             target_object_inds, device,
+                                             return_scene_pts=discriminator_score_weight>0,
+                                             return_scene_pts_and_pc_idxs=False,
+                                             num_scene_pts=discriminator_num_scene_pts, normalize_pc=discriminator_normalize_pc,
+                                             return_pair_pc=collision_score_weight>0, num_pair_pc_pts=collision_num_pair_pc_pts, normalize_pair_pc=collision_normalize_pc)
 
             #######################################
             # predict whether there are pairwise collisions
-            with torch.no_grad():
-                _, num_comb, num_pair_pc_pts, _ = obj_pair_xyzs.shape
-                # obj_pair_xyzs = obj_pair_xyzs.reshape(cur_batch_size * num_comb, num_pair_pc_pts, -1)
-                collision_logits = collision_model.forward(
-                    obj_pair_xyzs.reshape(cur_batch_size * num_comb, num_pair_pc_pts, -1))
-                collision_scores = collision_model.convert_logits(collision_logits)["is_circle"].reshape(
-                    cur_batch_size, num_comb)  # cur_batch_size, num_comb
+            if collision_score_weight > 0:
+                with torch.no_grad():
+                    _, num_comb, num_pair_pc_pts, _ = obj_pair_xyzs.shape
+                    # obj_pair_xyzs = obj_pair_xyzs.reshape(cur_batch_size * num_comb, num_pair_pc_pts, -1)
+                    collision_logits = collision_model.forward(
+                        obj_pair_xyzs.reshape(cur_batch_size * num_comb, num_pair_pc_pts, -1))
+                    collision_scores = collision_model.convert_logits(collision_logits)["is_circle"].reshape(
+                        cur_batch_size, num_comb)  # cur_batch_size, num_comb
 
-                # debug
-                # for bi, this_obj_pair_xyzs in enumerate(obj_pair_xyzs):
-                #     print("batch id", bi)
-                #     for pi, obj_pair_xyz in enumerate(this_obj_pair_xyzs):
-                #         print("pair", pi)
-                #         # obj_pair_xyzs: 2 * P, 5
-                #         print("collision score", collision_scores[bi, pi])
-                #         trimesh.PointCloud(obj_pair_xyz[:, :3].cpu()).show()
+                    # debug
+                    # for bi, this_obj_pair_xyzs in enumerate(obj_pair_xyzs):
+                    #     print("batch id", bi)
+                    #     for pi, obj_pair_xyz in enumerate(this_obj_pair_xyzs):
+                    #         print("pair", pi)
+                    #         # obj_pair_xyzs: 2 * P, 5
+                    #         print("collision score", collision_scores[bi, pi])
+                    #         trimesh.PointCloud(obj_pair_xyz[:, :3].cpu()).show()
 
-                # 1 - mean() since the collision model predicts 1 if there is a collision
-                no_intersection_scores[cur_batch_idxs_start:cur_batch_idxs_end] = 1 - torch.mean(collision_scores, dim=1)
-            # print("no intersection scores", no_intersection_scores)
+                    # 1 - mean() since the collision model predicts 1 if there is a collision
+                    no_intersection_scores[cur_batch_idxs_start:cur_batch_idxs_end] = 1 - torch.mean(collision_scores,
+                                                                                                     dim=1)
+                if visualize:
+                    print("no intersection scores", no_intersection_scores)
             #######################################
 
             # # debug:
@@ -241,7 +256,7 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
 
         # debug only
         # scores = 0.9 * scores + 0.1 * no_intersection_scores
-        scores = no_intersection_scores
+        scores = scores * discriminator_score_weight + no_intersection_scores * collision_score_weight
         sort_idx = torch.argsort(scores).flip(dims=[0])[:num_elite]
         elite_obj_params = obj_params[sort_idx]  # num_elite, N, 6
         elite_struct_poses = struct_pose.reshape(S, N, 4, 4)[sort_idx]  # num_elite, N, 4, 4
@@ -249,42 +264,21 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
         elite_scores = scores[sort_idx]
         print("elite scores:", elite_scores)
 
-
-
         ####################################################
         # visualize best samples
+        num_scene_pts = 4096 if discriminator_num_scene_pts is None else discriminator_num_scene_pts
         batch_current_pc_pose = current_pc_pose[0: num_elite * N]
-
-        # important: need to normalize pc for this discriminator
-        # ToDo: use the config file from discriminator to determine if normalize pc is needed
-        best_subsampled_scene_xyz, best_new_obj_xyzs, best_goal_pc_pose = move_pc_and_create_scene(obj_xyzs,
-                                                                                                   elite_obj_params,
-                                                                                                   elite_struct_poses,
-                                                                                                   batch_current_pc_pose,
-                                                                                                   target_object_inds,
-                                                                                                   num_scene_pts,
-                                                                                                   device,
-                                                                                                   normalize_pc=True)
-
+        best_new_obj_xyzs, best_goal_pc_pose, best_subsampled_scene_xyz, _, _ = \
+            move_pc_and_create_scene_new(obj_xyzs, elite_obj_params, elite_struct_poses, batch_current_pc_pose,
+                                         target_object_inds, device,
+                                         return_scene_pts=True, num_scene_pts=num_scene_pts, normalize_pc=True)
         if visualize:
             visualize_batch_pcs(best_new_obj_xyzs, num_elite, N, P, limit_B=num_elite)
-
-        # only take the best one
-        best_subsampled_scene_xyz = best_subsampled_scene_xyz[0][None, :, :]
-        best_new_obj_xyzs = best_new_obj_xyzs[0][None, :, :, :]
-        best_goal_pc_pose = best_goal_pc_pose[0][None, :, :, :]
-        best_score_so_far = [elite_scores[0]]
-
-        if visualize:
-            visualize_batch_pcs(best_new_obj_xyzs, 1, N, P, limit_B=1)
 
         best_goal_pc_pose = best_goal_pc_pose.cpu().numpy()
         best_subsampled_scene_xyz = best_subsampled_scene_xyz.cpu().numpy()
         best_new_obj_xyzs = best_new_obj_xyzs.cpu().numpy()
-        best_score_so_far = torch.stack(best_score_so_far).cpu().numpy()
-
-
-
+        best_score_so_far = elite_scores.cpu().numpy()
         ####################################################
         # verify in physics simulation
         d = {}
@@ -320,8 +314,13 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
         # sd["obj_perturbation_matrices"] = None
         sd["json_template_sentence"] = json.dumps(sample_raw_data["template_sentence"])
         sd["sentence_pad_mask"] = sample_raw_data["sentence_pad_mask"]
-        sd["position_index"] = list(range(discriminator_cfg.dataset.max_num_shape_parameters))
+        # sd["position_index"] = list(range(discriminator_cfg.dataset.max_num_shape_parameters))
         sd["object_pad_mask"] = sample_raw_data["obj_pad_mask"]
+        # for discriminator
+        if discriminator_score_weight > 0:
+            sd["json_raw_sentence_discriminator"] = json.dumps(raw_sentence_discriminator)
+            sd["raw_sentence_pad_mask_discriminator"] = raw_sentence_pad_mask_discriminator
+            sd["raw_position_index_discriminator"] = raw_position_index_discriminator
 
         # only save the best one
         for bsi in range(len(best_score_so_far)):
@@ -356,71 +355,89 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
 
 
 if __name__ == "__main__":
-    ####################################################################################################################
-    # batch testing for testing objects
-    ####################################################################################################################
-    model_dir = "/home/weiyu/Research/intern/StructDiffuser/experiments/20220908-153226/model"
-    discriminator_model_dir = "/home/weiyu/Research/intern/semantic-rearrangement/experiments/20220809/20220813-220054_epoch46/best_model"
-    collision_model_dir = "/home/weiyu/Research/intern/semantic-rearrangement/experiments/20220809/20220809-002824/best_model"
-    evaluate(structure_type="dinner",
-             generator_model_dir=model_dir, data_split="train",
-             data_root="/home/weiyu/data_drive/physics_eval_diffuser_template_sentence_dinner_10k_test_objects_discriminator_local_shape_param_collision_100",
-             discriminator_model_dir=discriminator_model_dir,
-             collision_model_dir=collision_model_dir,
-             test_specific_shape=None,
-             num_samples=100, num_elite=5,
-             discriminator_inference_batch_size=24,  # 64 runs out of memoery
-             assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
-             object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_v4",
-             redirect_stdout=True, shuffle=False, summary_writer=None,
-             max_num_eval=100, visualize=False,
-             override_data_dirs=["/home/weiyu/data_drive/data_test_objects/dinner_data/result"],
-             override_index_dirs=["index"])
+    parser = argparse.ArgumentParser(description="eval")
+    parser.add_argument("--base_config_file", help='base config yaml file',
+                        default='../../../configs/physics_eval/dataset_housekeep_custom/base.yaml',
+                        type=str)
+    parser.add_argument("--config_file", help='config yaml file',
+                        default='../../../configs/physics_eval/dataset_housekeep_custom/diffusion_v4_lang_template_collision/tower_test.yaml',
+                        type=str)
+    args = parser.parse_args()
+    assert os.path.exists(args.base_config_file), "Cannot find base config yaml file at {}".format(args.config_file)
+    assert os.path.exists(args.config_file), "Cannot find config yaml file at {}".format(args.config_file)
+    base_cfg = OmegaConf.load(args.base_config_file)
+    cfg = OmegaConf.load(args.config_file)
+    cfg = OmegaConf.merge(base_cfg, cfg)
 
-    evaluate(structure_type="circle",
-             generator_model_dir=model_dir, data_split="train",
-             data_root="/home/weiyu/data_drive/physics_eval_diffuser_template_sentence_circle_10k_test_objects_discriminator_local_shape_param_collision_100",
-             discriminator_model_dir=discriminator_model_dir,
-             collision_model_dir=collision_model_dir,
-             test_specific_shape=None,
-             num_samples=100, num_elite=5,
-             discriminator_inference_batch_size=24,  # 64 runs out of memoery
-             assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
-             object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_v4",
-             redirect_stdout=True, shuffle=False, summary_writer=None,
-             max_num_eval=100, visualize=False,
-             override_data_dirs=["/home/weiyu/data_drive/data_test_objects/circle_data/result"],
-             override_index_dirs=["index"])
+    cfg.physics_eval_early_stop = False
 
-    evaluate(structure_type="line",
-             generator_model_dir=model_dir, data_split="train",
-             data_root="/home/weiyu/data_drive/physics_eval_diffuser_template_sentence_line_10k_test_objects_discriminator_local_shape_param_collision_100",
-             discriminator_model_dir=discriminator_model_dir,
-             collision_model_dir=collision_model_dir,
-             test_specific_shape=None,
-             num_samples=100, num_elite=5,
-             discriminator_inference_batch_size=24,  # 64 runs out of memoery
-             assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
-             object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_v4",
-             redirect_stdout=True, shuffle=False, summary_writer=None,
-             max_num_eval=100, visualize=False,
-             override_data_dirs=["/home/weiyu/data_drive/data_test_objects/line_data/result"],
-             override_index_dirs=["index"])
+    evaluate(**cfg)
 
-    evaluate(structure_type="tower",
-             generator_model_dir=model_dir, data_split="train",
-             data_root="/home/weiyu/data_drive/physics_eval_diffuser_template_sentence_stacking_10k_test_objects_discriminator_local_shape_param_collision_100",
-             discriminator_model_dir=discriminator_model_dir,
-             collision_model_dir=collision_model_dir,
-             test_specific_shape=None,
-             num_samples=100, num_elite=5,
-             discriminator_inference_batch_size=24,  # 64 runs out of memoery
-             assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
-             object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_v4",
-             redirect_stdout=True, shuffle=False, summary_writer=None,
-             max_num_eval=100, visualize=False,
-             override_data_dirs=["/home/weiyu/data_drive/data_test_objects/stacking_data/result"],
-             override_index_dirs=["index"])
+    # ####################################################################################################################
+    # # batch testing for testing objects
+    # ####################################################################################################################
+    # model_dir = "/home/weiyu/Research/intern/StructDiffuser/experiments/20220908-153226/model"
+    # discriminator_model_dir = "/home/weiyu/Research/intern/semantic-rearrangement/experiments/20220809/20220813-220054_epoch46/best_model"
+    # collision_model_dir = "/home/weiyu/Research/intern/semantic-rearrangement/experiments/20220809/20220809-002824/best_model"
+    # evaluate(structure_type="dinner",
+    #          generator_model_dir=model_dir, data_split="train",
+    #          data_root="/home/weiyu/data_drive/physics_eval_diffuser_template_sentence_dinner_10k_test_objects_discriminator_local_shape_param_collision_100",
+    #          discriminator_model_dir=discriminator_model_dir,
+    #          collision_model_dir=collision_model_dir,
+    #          test_specific_shape=None,
+    #          num_samples=100, num_elite=5,
+    #          discriminator_inference_batch_size=24,  # 64 runs out of memoery
+    #          assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
+    #          object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_v4",
+    #          redirect_stdout=True, shuffle=False, summary_writer=None,
+    #          max_num_eval=100, visualize=False,
+    #          override_data_dirs=["/home/weiyu/data_drive/data_test_objects/dinner_data/result"],
+    #          override_index_dirs=["index"])
+    #
+    # evaluate(structure_type="circle",
+    #          generator_model_dir=model_dir, data_split="train",
+    #          data_root="/home/weiyu/data_drive/physics_eval_diffuser_template_sentence_circle_10k_test_objects_discriminator_local_shape_param_collision_100",
+    #          discriminator_model_dir=discriminator_model_dir,
+    #          collision_model_dir=collision_model_dir,
+    #          test_specific_shape=None,
+    #          num_samples=100, num_elite=5,
+    #          discriminator_inference_batch_size=24,  # 64 runs out of memoery
+    #          assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
+    #          object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_v4",
+    #          redirect_stdout=True, shuffle=False, summary_writer=None,
+    #          max_num_eval=100, visualize=False,
+    #          override_data_dirs=["/home/weiyu/data_drive/data_test_objects/circle_data/result"],
+    #          override_index_dirs=["index"])
+    #
+    # evaluate(structure_type="line",
+    #          generator_model_dir=model_dir, data_split="train",
+    #          data_root="/home/weiyu/data_drive/physics_eval_diffuser_template_sentence_line_10k_test_objects_discriminator_local_shape_param_collision_100",
+    #          discriminator_model_dir=discriminator_model_dir,
+    #          collision_model_dir=collision_model_dir,
+    #          test_specific_shape=None,
+    #          num_samples=100, num_elite=5,
+    #          discriminator_inference_batch_size=24,  # 64 runs out of memoery
+    #          assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
+    #          object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_v4",
+    #          redirect_stdout=True, shuffle=False, summary_writer=None,
+    #          max_num_eval=100, visualize=False,
+    #          override_data_dirs=["/home/weiyu/data_drive/data_test_objects/line_data/result"],
+    #          override_index_dirs=["index"])
+    #
+    # evaluate(structure_type="tower",
+    #          generator_model_dir=model_dir, data_split="train",
+    #          data_root="/home/weiyu/data_drive/physics_eval_diffuser_template_sentence_stacking_10k_test_objects_discriminator_local_shape_param_collision_100",
+    #          discriminator_model_dir=discriminator_model_dir,
+    #          collision_model_dir=collision_model_dir,
+    #          test_specific_shape=None,
+    #          num_samples=100, num_elite=5,
+    #          discriminator_inference_batch_size=24,  # 64 runs out of memoery
+    #          assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
+    #          object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_v4",
+    #          redirect_stdout=True, shuffle=False, summary_writer=None,
+    #          max_num_eval=100, visualize=False,
+    #          override_data_dirs=["/home/weiyu/data_drive/data_test_objects/stacking_data/result"],
+    #          override_index_dirs=["index"])
 
 
 

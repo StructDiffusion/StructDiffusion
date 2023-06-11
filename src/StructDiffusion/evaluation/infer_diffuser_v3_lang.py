@@ -1,6 +1,8 @@
 import tqdm
 import torch
 from torch.utils.data import DataLoader
+import numpy as np
+import trimesh
 
 from StructDiffusion.utils.torch_data import default_collate
 from StructDiffusion.training.train_diffuser_v3_lang import load_model, get_diffusion_variables, extract, get_struct_objs_poses, move_pc_and_create_scene, visualize_batch_pcs
@@ -156,8 +158,8 @@ def run(model_dir, num_samples=10):
 
     # load data
     data_cfg = cfg.dataset
-    test_dataset = SemanticArrangementDataset(data_roots=["/home/weiyu/data_drive/data_test_objects/line_data/result"],
-                                              index_roots=["/home/weiyu/data_drive/data_test_objects/line_data/result/index"],
+    test_dataset = SemanticArrangementDataset(data_roots=["/home/weiyu/data_drive/StructDiffusion/testing_data/dinner/result"],
+                                              index_roots=["/home/weiyu/data_drive/StructDiffusion/testing_data/dinner/result/index"],
                                               # data_roots=data_cfg.dirs,
                                               # index_roots=data_cfg.index_dirs,
                                               split="test",
@@ -180,6 +182,9 @@ def run(model_dir, num_samples=10):
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(data_iter["test"]):
+
+            if batch_idx < 14:
+                continue
 
             # input
             xyzs = batch["xyzs"].to(device, non_blocking=True)
@@ -279,60 +284,90 @@ def run(model_dir, num_samples=10):
             #
             #     xs.append(x)
 
+            # show initial scene
+            num_target_objs = torch.sum(object_pad_mask[0] == 0)
+            obj_xyzs = batch["xyzs"].numpy()[0, :num_target_objs]
+            obj_rgbs = batch["rgbs"].numpy()[0, :num_target_objs]
+            vis_pcs = [
+                trimesh.PointCloud(obj_xyz, colors=np.concatenate([obj_rgb * 255, np.ones([P, 1]) * 255], axis=-1)) for
+                obj_xyz, obj_rgb in zip(obj_xyzs, obj_rgbs)]
+            scene = trimesh.Scene()
+            # add the coordinate frame first
+            geom = trimesh.creation.axis(0.01)
+            # scene.add_geometry(geom)
+            table = trimesh.creation.box(extents=[1.0, 1.0, 0.02])
+            table.apply_translation([0.5, 0, -0.01])
+            table.visual.vertex_colors = [150, 111, 87, 125]
+            # scene.add_geometry(table)
+            # bounds = trimesh.creation.box(extents=[4.0, 4.0, 4.0])
+            bounds = trimesh.creation.icosphere(subdivisions=3, radius=3.1)
+            bounds.apply_translation([0, 0, 0])
+            bounds.visual.vertex_colors = [30, 30, 30, 30]
+            # scene.add_geometry(bounds)
+            scene.add_geometry(vis_pcs)
+            RT_4x4 = np.array([[-0.39560353822208355, -0.9183993826406329, 0.006357240869497738, 0.2651463080169481],
+                               [-0.797630370081598, 0.3401340617616391, -0.4980909683511864, 0.2225696480721997],
+                               [0.45528412367406523, -0.2021172778236285, -0.8671014777611122, 0.9449050652025951],
+                               [0.0, 0.0, 0.0, 1.0]])
+            RT_4x4 = np.linalg.inv(RT_4x4)
+            RT_4x4 = RT_4x4 @ np.diag([1, -1, -1, 1])
+            scene.camera_transform = RT_4x4
+            scene.show()
+
+
+
             xs = list(reversed(xs))
 
-            # # visualize x
+            # visualize x
             # for vis_t in tqdm.tqdm([int(tt) for tt in np.ceil(np.linspace(0**0.5, 199**0.5, 20) ** 2)], desc='visualize iteration time step',):
-            # # for vis_t in [0]:
-            #     print(vis_t)
-            #     struct_pose, pc_poses_in_struct = get_struct_objs_poses(xs[vis_t])
-            #     # print(struct_pose)
-            #     # print(pc_poses_in_struct)
-            #     new_obj_xyzs = move_pc_and_create_scene(xyzs, struct_pose, pc_poses_in_struct)
-            #     num_target_objs = torch.sum(object_pad_mask == 0)
-            #     # print(object_pad_mask)
-            #     # print(num_target_objs)
-            #     new_obj_xyzs = new_obj_xyzs[:, :num_target_objs]
-            #     # print(new_obj_xyzs.shape)
-            #     # visualize_batch_pcs(new_obj_xyzs, B, num_target_objs, P, verbose=False, limit_B=num_samples,)
-            #     #                     # save_dir=os.path.join("/home/weiyu/Research/intern/StructDiffuser/imgs/shapes", "d{}/t{}".format(batch_idx, vis_t)))
-            #
-            #     new_obj_xyzs = new_obj_xyzs.cpu().numpy()
-            #     new_obj_xyzs = new_obj_xyzs[0]  # num_target_objs, P, 3
-            #     obj_rgbs = batch["rgbs"].numpy()[0, :num_target_objs]
-            #     # print(obj_rgbs.shape)
-            #     vis_pcs = [trimesh.PointCloud(obj_xyz, colors=np.concatenate([obj_rgb * 255, np.ones([P, 1])*255], axis=-1)) for obj_xyz, obj_rgb in zip(new_obj_xyzs, obj_rgbs)]
-            #
-            #     scene = trimesh.Scene()
-            #     # add the coordinate frame first
-            #     geom = trimesh.creation.axis(0.01)
-            #     scene.add_geometry(geom)
-            #     table = trimesh.creation.box(extents=[1.0, 1.0, 0.02])
-            #     table.apply_translation([0.5, 0, -0.01])
-            #     table.visual.vertex_colors = [150, 111, 87, 125]
-            #     scene.add_geometry(table)
-            #     # bounds = trimesh.creation.box(extents=[4.0, 4.0, 4.0])
-            #     bounds = trimesh.creation.icosphere(subdivisions=3, radius=3.1)
-            #     bounds.apply_translation([0, 0, 0])
-            #     bounds.visual.vertex_colors = [30, 30, 30, 30]
-            #     scene.add_geometry(bounds)
-            #     scene.add_geometry(vis_pcs)
-            #
-            #     RT_4x4 = np.array([[-0.7147778097036409, -0.6987369263935487, 0.02931536200292423, 0.3434544782290732],
-            #                        [-0.47073865286968597, 0.4496990781074231, -0.7590624874434035, 0.10599949513304896],
-            #                        [0.5172018981497449, -0.5563608962206371, -0.6503574015161744, 5.32058832987803],
-            #                        [0.0, 0.0, 0.0, 1.0]])
-            #     RT_4x4 = np.linalg.inv(RT_4x4)
-            #     RT_4x4 = RT_4x4 @ np.diag([1, -1, -1, 1])
-            #     scene.camera_transform = RT_4x4
-            #
-            #     scene.show()
+            for vis_t in [0]:
+                for b in range(B):
+                    print(vis_t)
+                    struct_pose, pc_poses_in_struct = get_struct_objs_poses(xs[vis_t])
+                    # print(struct_pose)
+                    # print(pc_poses_in_struct)
+                    new_obj_xyzs = move_pc_and_create_scene(xyzs, struct_pose, pc_poses_in_struct)
+                    num_target_objs = torch.sum(object_pad_mask[0] == 0)
+                    # print(object_pad_mask)
+                    # print(num_target_objs)
+                    new_obj_xyzs = new_obj_xyzs[:, :num_target_objs]
+                    # print(new_obj_xyzs.shape)
+                    # visualize_batch_pcs(new_obj_xyzs, B, num_target_objs, P, verbose=False, limit_B=num_samples,)
+                    #                     # save_dir=os.path.join("/home/weiyu/Research/intern/StructDiffuser/imgs/shapes", "d{}/t{}".format(batch_idx, vis_t)))
+
+                    new_obj_xyzs = new_obj_xyzs.cpu().numpy()
+                    new_obj_xyzs = new_obj_xyzs[b]  # num_target_objs, P, 3
+                    obj_rgbs = batch["rgbs"].numpy()[0, :num_target_objs]
+                    # print(obj_rgbs.shape)
+                    vis_pcs = [trimesh.PointCloud(obj_xyz, colors=np.concatenate([obj_rgb * 255, np.ones([P, 1])*255], axis=-1)) for obj_xyz, obj_rgb in zip(new_obj_xyzs, obj_rgbs)]
+
+                    scene = trimesh.Scene()
+                    # add the coordinate frame first
+                    geom = trimesh.creation.axis(0.01)
+                    # scene.add_geometry(geom)
+                    table = trimesh.creation.box(extents=[1.0, 1.0, 0.02])
+                    table.apply_translation([0.5, 0, -0.01])
+                    table.visual.vertex_colors = [150, 111, 87, 125]
+                    scene.add_geometry(table)
+                    # bounds = trimesh.creation.box(extents=[4.0, 4.0, 4.0])
+                    bounds = trimesh.creation.icosphere(subdivisions=3, radius=3.1)
+                    bounds.apply_translation([0, 0, 0])
+                    bounds.visual.vertex_colors = [30, 30, 30, 30]
+                    # scene.add_geometry(bounds)
+                    scene.add_geometry(vis_pcs)
+
+                    RT_4x4 = np.array([[-0.39560353822208355, -0.9183993826406329, 0.006357240869497738, 0.2651463080169481], [-0.797630370081598, 0.3401340617616391, -0.4980909683511864, 0.2225696480721997], [0.45528412367406523, -0.2021172778236285, -0.8671014777611122, 0.9449050652025951], [0.0, 0.0, 0.0, 1.0]])
+                    RT_4x4 = np.linalg.inv(RT_4x4)
+                    RT_4x4 = RT_4x4 @ np.diag([1, -1, -1, 1])
+                    scene.camera_transform = RT_4x4
+
+                    scene.show()
 
 
-
-            struct_pose, pc_poses_in_struct = get_struct_objs_poses(xs[0])
-            new_obj_xyzs = move_pc_and_create_scene(xyzs, struct_pose, pc_poses_in_struct)
-            visualize_batch_pcs(new_obj_xyzs, B, N, P, verbose=False, limit_B=num_samples)
+            #
+            # struct_pose, pc_poses_in_struct = get_struct_objs_poses(xs[0])
+            # new_obj_xyzs = move_pc_and_create_scene(xyzs, struct_pose, pc_poses_in_struct)
+            # visualize_batch_pcs(new_obj_xyzs, B, N, P, verbose=False, limit_B=num_samples)
 
 
 

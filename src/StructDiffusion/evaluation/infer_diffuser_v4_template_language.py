@@ -1,6 +1,8 @@
 import tqdm
 import torch
 from torch.utils.data import DataLoader
+import trimesh
+import numpy as np
 
 from StructDiffusion.utils.torch_data import default_collate
 from StructDiffusion.training.train_diffuser_v4_template_language import load_model, get_diffusion_variables, extract, get_struct_objs_poses, move_pc_and_create_scene, visualize_batch_pcs
@@ -352,15 +354,68 @@ def run(model_dir, num_samples=10, input_sentence=False, return_full_sentence=Tr
             #
             #     scene.show()
 
+            print("initial scene")
             struct_pose, pc_poses_in_struct = get_struct_objs_poses(xs[0])
             new_obj_xyzs = move_pc_and_create_scene(xyzs, struct_pose, pc_poses_in_struct)
 
-            new_obj_xyzs_with_original_sentence = new_obj_xyzs[:original_num_samples]
-            visualize_batch_pcs(new_obj_xyzs_with_original_sentence, original_num_samples, N, P, verbose=False, limit_B=original_num_samples)
+            # print("rearrangement with original sentence")
+            # new_obj_xyzs_with_original_sentence = new_obj_xyzs[:original_num_samples]
+            # visualize_batch_pcs(new_obj_xyzs_with_original_sentence, original_num_samples, N, P, verbose=False, limit_B=original_num_samples)
 
             if input_sentence:
+                print("rearrangement with input sentence")
                 new_obj_xyzs_with_user_sentence = new_obj_xyzs[original_num_samples:]
                 visualize_batch_pcs(new_obj_xyzs_with_user_sentence, original_num_samples, N, P, verbose=False, limit_B=original_num_samples)
+
+                print("rearrangement with original sentence, in trimesh")
+                # # visualize x
+                # struct_pose, pc_poses_in_struct = get_struct_objs_poses(xs[0])
+                # # print(struct_pose)
+                # # print(pc_poses_in_struct)
+                # new_obj_xyzs = move_pc_and_create_scene(xyzs, struct_pose, pc_poses_in_struct)
+                num_target_objs = torch.sum(object_pad_mask[0, :] == 0)
+                # # print(object_pad_mask)
+                # # print(num_target_objs)
+                new_obj_xyzs_with_user_sentence = new_obj_xyzs_with_user_sentence[:, :num_target_objs]
+                # print(new_obj_xyzs.shape)
+                # visualize_batch_pcs(new_obj_xyzs, B, num_target_objs, P, verbose=False, limit_B=num_samples,)
+                #                     # save_dir=os.path.join("/home/weiyu/Research/intern/StructDiffuser/imgs/shapes", "d{}/t{}".format(batch_idx, vis_t)))
+
+                new_obj_xyzs_with_user_sentence = new_obj_xyzs_with_user_sentence.cpu().numpy()
+
+                for b in range(original_num_samples):
+                    sample_new_obj_xyzs = new_obj_xyzs_with_user_sentence[b]  # num_target_objs, P, 3
+                    obj_rgbs = batch["rgbs"].numpy()[0, :num_target_objs]
+                    # print(obj_rgbs.shape)
+                    vis_pcs = [trimesh.PointCloud(obj_xyz, colors=np.concatenate([obj_rgb * 255, np.ones([P, 1]) * 255],
+                                                                                 axis=-1)) for obj_xyz, obj_rgb in
+                               zip(sample_new_obj_xyzs, obj_rgbs)]
+
+                    scene = trimesh.Scene()
+                    # add the coordinate frame first
+                    geom = trimesh.creation.axis(0.01)
+                    scene.add_geometry(geom)
+                    table = trimesh.creation.box(extents=[1.0, 1.0, 0.02])
+                    table.apply_translation([0.5, 0, -0.01])
+                    table.visual.vertex_colors = [150, 111, 87, 125]
+                    scene.add_geometry(table)
+                    # # bounds = trimesh.creation.box(extents=[4.0, 4.0, 4.0])
+                    # bounds = trimesh.creation.icosphere(subdivisions=3, radius=3.1)
+                    # bounds.apply_translation([0, 0, 0])
+                    # bounds.visual.vertex_colors = [30, 30, 30, 30]
+                    # scene.add_geometry(bounds)
+                    scene.add_geometry(vis_pcs)
+
+                    # RT_4x4 = np.array(
+                    #     [[-0.7147778097036409, -0.6987369263935487, 0.02931536200292423, 0.3434544782290732],
+                    #      [-0.47073865286968597, 0.4496990781074231, -0.7590624874434035, 0.10599949513304896],
+                    #      [0.5172018981497449, -0.5563608962206371, -0.6503574015161744, 5.32058832987803],
+                    #      [0.0, 0.0, 0.0, 1.0]])
+                    # RT_4x4 = np.linalg.inv(RT_4x4)
+                    # RT_4x4 = RT_4x4 @ np.diag([1, -1, -1, 1])
+                    # scene.camera_transform = RT_4x4
+
+                    scene.show()
 
 
 

@@ -1,51 +1,24 @@
-from __future__ import print_function, division
-
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.optim import lr_scheduler
 import numpy as np
-import torchvision
-from torchvision import datasets, models, transforms
-import matplotlib.pyplot as plt
-import time
 import os
-import copy
-import tqdm
-import pickle
+import pytorch3d.transforms as tra3d
+import json
 import argparse
 from omegaconf import OmegaConf
-from collections import defaultdict
-import trimesh
-import pickle
-import io
-from PIL import Image, ImageDraw, ImageFont
-import open3d
-import brain2.utils.transformations as tra
-import pytorch3d.transforms as tra3d
-from torch.utils.data import DataLoader
-from tokenizer import Tokenizer
-from brain2.semantic_rearrangement.physics_verification_dinner import verify_datum_in_simulation
-import h5py
-import json
-import sys
-from sklearn.metrics import classification_report, confusion_matrix
-import warnings
 
-from src.generative_models.try_langevin_actor_vae_3networks_language_all_shapes_discriminator_7 import DiscriminatorInference, PriorInference, switch_stdout, visualize_batch_pcs, move_pc_and_create_scene, move_pc, convert_bool, save_dict_to_h5
+# physics eval
+from StructDiffusion.utils.physics_eval import switch_stdout, visualize_batch_pcs, convert_bool, save_dict_to_h5, move_pc
+from rearrangement_gym.semantic_rearrangement.physics_verification_dinner import verify_datum_in_simulation
 
-
-# suppress scikit warnings
-def warn(*args, **kwargs):
-    pass
-warnings.warn = warn
+# inference
+from StructDiffusion.evaluation.infer_vae import PriorInference
 
 
 def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_root,
             assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
             object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_large",
             redirect_stdout=False, shuffle=False, summary_writer=None, max_num_eval=10, visualize=False,
-            override_data_dirs=None, override_index_dirs=None, physics_eval_early_stop=True):
+            override_data_dirs=None, override_index_dirs=None, physics_eval_early_stop=True, **kwargs):
 
     np.random.seed(random_seed)
     torch.manual_seed(random_seed)
@@ -231,12 +204,18 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="eval")
+    parser.add_argument("--base_config_file", help='base config yaml file',
+                        default='../../../configs/physics_eval/dataset_housekeep_custom/base.yaml',
+                        type=str)
     parser.add_argument("--config_file", help='config yaml file',
-                        default='../configs/physics_eval/vae/dinner.yaml',
+                        default='../../../configs/physics_eval/dataset_housekeep_custom/vae/circle_test.yaml',
                         type=str)
     args = parser.parse_args()
+    assert os.path.exists(args.base_config_file), "Cannot find base config yaml file at {}".format(args.config_file)
     assert os.path.exists(args.config_file), "Cannot find config yaml file at {}".format(args.config_file)
+    base_cfg = OmegaConf.load(args.base_config_file)
     cfg = OmegaConf.load(args.config_file)
+    cfg = OmegaConf.merge(base_cfg, cfg)
 
     cfg.physics_eval_early_stop = False
 

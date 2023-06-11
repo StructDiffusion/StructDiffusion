@@ -6,16 +6,19 @@ import json
 import argparse
 from omegaconf import OmegaConf
 
-from src.generative_models.try_langevin_actor_vae_3networks_language_all_shapes_discriminator_7 import switch_stdout, move_pc, visualize_batch_pcs, convert_bool, save_dict_to_h5
-from src.test_prior_continuous_out_encoder_decoder_struct_pct_6d_dropout_all_objects_all_shapes import PriorInference
-from brain2.semantic_rearrangement.physics_verification_dinner import verify_datum_in_simulation
+# physics eval
+from StructDiffusion.utils.physics_eval import switch_stdout, visualize_batch_pcs, convert_bool, save_dict_to_h5, move_pc
+from rearrangement_gym.semantic_rearrangement.physics_verification_dinner import verify_datum_in_simulation
+
+# inference
+from StructDiffusion.evaluation.infer_prior_continuous_out_encoder_decoder_struct_pct_6d_dropout_all_objects_all_shapes import PriorInference
 
 
 def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_root,
             assets_path="/home/weiyu/Research/intern/brain_gym/assets/urdf",
             object_model_dir="/home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_large",
             redirect_stdout=False, shuffle=False, summary_writer=None, max_num_eval=10, visualize=False,
-            override_data_dirs=None, override_index_dirs=None, physics_eval_early_stop=True):
+            override_data_dirs=None, override_index_dirs=None, physics_eval_early_stop=True, **kwargs):
 
     np.random.seed(random_seed)
     torch.manual_seed(random_seed)
@@ -257,15 +260,23 @@ def evaluate(random_seed, structure_type, generator_model_dir, data_split, data_
 
     switch_stdout()
 
+    return success_eval_idxs
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="eval")
+    parser.add_argument("--base_config_file", help='base config yaml file',
+                        default='../../../configs/physics_eval/dataset_housekeep_custom/base.yaml',
+                        type=str)
     parser.add_argument("--config_file", help='config yaml file',
-                        default='../configs/physics_eval/transformer/dinner.yaml',
+                        default='../../../configs/physics_eval/dataset_housekeep_custom/transformer/circle_test.yaml',
                         type=str)
     args = parser.parse_args()
+    assert os.path.exists(args.base_config_file), "Cannot find base config yaml file at {}".format(args.config_file)
     assert os.path.exists(args.config_file), "Cannot find config yaml file at {}".format(args.config_file)
+    base_cfg = OmegaConf.load(args.base_config_file)
     cfg = OmegaConf.load(args.config_file)
+    cfg = OmegaConf.merge(base_cfg, cfg)
 
     cfg.physics_eval_early_stop = False
 

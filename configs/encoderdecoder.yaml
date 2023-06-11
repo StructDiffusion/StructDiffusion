@@ -1,0 +1,50 @@
+experiment_dir: ${base_dirs.experiment}/${env:DATETIME}
+
+random_seed: 1
+device: 0
+
+obj_xytheta_relative: False
+save_model: True
+save_best_model: True
+
+dataset:
+  dirs:
+    - ${base_dirs.data}/examples_circle_new_objects/result
+    - ${base_dirs.data}/examples_line_new_objects/result
+    - ${base_dirs.data}/examples_stacking_new_objects/result
+    - ${base_dirs.data}/examples_dinner_new_objects/result
+  index_dirs:
+    - index_10k
+    - index_10k
+    - index_10k
+    - index_10k
+  vocab_dir: ${base_dirs.data}/type_vocabs_coarse.json
+  batch_size: 32
+  max_num_shape_parameters: 5
+  max_num_objects: 7
+  max_num_other_objects: 5
+  max_num_rearrange_features: 0
+  max_num_anchor_features: 0
+  num_pts: 1024
+  num_workers: 4
+  pin_memory: True
+
+model:
+  name: encoderdecoder_struct_warmup_pct_6d_all_objects
+  num_attention_heads: 8
+  encoder_hidden_dim: 512
+  encoder_dropout: 0.0
+  encoder_activation: relu
+  encoder_num_layers: 8
+  structure_dropout: 0.5
+  object_dropout: 0.1
+  theta_loss_divide: 3
+  ignore_rgb: True
+  ignore_other_objects: True
+
+training:
+  learning_rate: 0.0001
+  max_epochs: 200
+  l2: 0.0001
+  lr_restart: 3000
+  warmup: 10

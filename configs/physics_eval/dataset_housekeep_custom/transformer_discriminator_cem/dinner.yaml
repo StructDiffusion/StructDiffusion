@@ -1,23 +1,23 @@
-random_seed: 0
+random_seed: ${base.random_seed}
 structure_type: dinner
-generator_model_dir: /home/weiyu/Research/intern/semantic-rearrangement/experiments/20220805-153259/best_model
+generator_model_dir: ${base.models.transformer.dinner}
 data_split: train
-data_root: /home/weiyu/data_drive/physics_eval_1016/transformer_discriminator_cem_dinner
-discriminator_model_dir: /home/weiyu/Research/intern/semantic-rearrangement/experiments/20220809/20220813-220054_epoch46/best_model
+data_root: ${base.dirs.experiment}/transformer_dinner_discriminator_cem
+discriminator_model_dir: ${base.models.discriminator}
 collision_score_weight: 0.0
 discriminator_score_weight: 1.0
-ce_num_iteration: 10
-ce_num_samples: 500
-ce_num_elite: 10
-ce_num_best_so_far: 1
+ce_num_iteration: ${base.cem.num_iteration}
+ce_num_samples: ${base.cem.num_samples}
+ce_num_elite: ${base.cem.num_elite}
+ce_num_best_so_far: ${base.cem.num_best_so_far}
 discriminator_inference_batch_size: 64
-assets_path: /home/weiyu/Research/intern/brain_gym/assets/urdf
-object_model_dir: /home/weiyu/data_drive/structformer_assets/housekeep_custom_handpicked_small
-redirect_stdout: True
+assets_path: ${base.assets_path}
+object_model_dir: ${base.object_model_dir}
+redirect_stdout: ${base.redirect_stdout}
 shuffle: False
-max_num_eval: 100
-visualize: False
+max_num_eval: ${base.max_num_eval}
+visualize: ${base.visualize}
 override_data_dirs:
-  - /home/weiyu/data_drive/data_housekeep_custom/dinner/result
+  - ${base.dirs.data}/dinner/result
 override_index_dirs:
   - index

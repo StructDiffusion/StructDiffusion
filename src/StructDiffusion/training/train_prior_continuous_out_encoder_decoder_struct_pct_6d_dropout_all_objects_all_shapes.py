@@ -435,7 +435,8 @@ def run_model(cfg):
                                                                          structure_dropout=model_cfg.structure_dropout,
                                                                          object_dropout=model_cfg.object_dropout,
                                                                          theta_loss_divide=model_cfg.theta_loss_divide,
-                                                                         ignore_rgb=model_cfg.ignore_rgb)
+                                                                         ignore_rgb=model_cfg.ignore_rgb,
+                                                                         ignore_other_objects=model_cfg.ignore_other_objects)
     model.to(cfg.device)
 
     training_cfg = cfg.training
@@ -458,19 +459,21 @@ def run_model(cfg):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run a simple model")
+    parser.add_argument("--base_config_file", help='base config yaml file',
+                        default='../../../configs/base.yaml',
+                        type=str)
     parser.add_argument("--config_file", help='config yaml file',
-                        default='configs/new_objects/encoderdecoder_struct_warmup_pct_6d_all_objects_circle_l2_theta_loss_ignore_rgb_10k.yaml',
+                        default='../../../configs/encoderdecoder.yaml',
                         type=str)
     args = parser.parse_args()
-
+    assert os.path.exists(args.base_config_file), "Cannot find base config yaml file at {}".format(args.config_file)
     assert os.path.exists(args.config_file), "Cannot find config yaml file at {}".format(args.config_file)
-
     os.environ["DATETIME"] = time.strftime("%Y%m%d-%H%M%S")
+    base_cfg = OmegaConf.load(args.base_config_file)
     cfg = OmegaConf.load(args.config_file)
-
+    cfg = OmegaConf.merge(base_cfg, cfg)
     if not os.path.exists(cfg.experiment_dir):
         os.makedirs(cfg.experiment_dir)
-
     OmegaConf.save(cfg, os.path.join(cfg.experiment_dir, "config.yaml"))
 
     run_model(cfg)

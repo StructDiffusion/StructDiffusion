@@ -1,4 +1,4 @@
-random_seed: 0
+random_seed: ${base.random_seed}
 structure_type: line
 generator_model_dir: ${base.models.diffusion}
 data_split: train
@@ -6,7 +6,7 @@ data_root: ${base.dirs.experiment}/diffusion_line_discriminator
 discriminator_model_dir: ${base.models.discriminator}
 collision_score_weight: 0.0
 discriminator_score_weight: 1.0
-num_samples: 100
+num_samples: ${base.rejection.num_samples}
 num_elite: 1
 discriminator_inference_batch_size: 24
 assets_path: ${base.assets_path}

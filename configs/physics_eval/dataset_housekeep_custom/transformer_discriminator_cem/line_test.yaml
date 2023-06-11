@@ -1,0 +1,23 @@
+random_seed: ${base.random_seed}
+structure_type: line
+generator_model_dir: ${base.models.transformer.line}
+data_split: train
+data_root: ${base.dirs.experiment}/transformer_line_discriminator_cem
+discriminator_model_dir: ${base.models.discriminator}
+collision_score_weight: 0.0
+discriminator_score_weight: 1.0
+ce_num_iteration: ${base.cem.num_iteration}
+ce_num_samples: ${base.cem.num_samples}
+ce_num_elite: ${base.cem.num_elite}
+ce_num_best_so_far: ${base.cem.num_best_so_far}
+discriminator_inference_batch_size: 64
+assets_path: ${base.assets_path}
+object_model_dir: ${base.object_model_dir}
+redirect_stdout: False
+shuffle: False
+max_num_eval: ${base.max_num_eval}
+visualize: True
+override_data_dirs:
+  - ${base.dirs.data}/line/result
+override_index_dirs:
+  - index
