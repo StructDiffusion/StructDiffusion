@@ -13,6 +13,9 @@ pip install -e .
 ```
 
 ### Notes on Dependencies
+- `conda install pytorch==1.12.0 torchvision==0.13.0 torchaudio==0.12.0 cudatoolkit=11.3 -c pytorch`
+- `pip install pytorch_lightning==1.6.1`
+- https://lightning.ai/docs/pytorch/latest/versioning.html#compatibility-matrix
 - `torch`: After installation, check if pytorch can use `.cuda()`. I used `pip install torch==1.8.0+cu111 torchvision==0.9.0+cu111 torchaudio==0.8.0 -f https://download.pytorch.org/whl/torch_stable.html`.
 - `h5py==2.10`: this specific version is needed.
 - `omegaconfg==1.4.1`: some functions used in this repo are from newer versions

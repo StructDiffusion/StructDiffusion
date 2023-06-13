@@ -1,0 +1,77 @@
+random_seed: 1
+
+WANDB:
+  project: StructDiffusion
+  save_dir: ${base_dirs.wandb_dir}
+  name: conditional_pose_diffusion
+
+DATASET:
+  dirs:
+    - ${base_dirs.data}/examples_circle_new_objects/result
+    - ${base_dirs.data}/examples_line_new_objects/result
+    - ${base_dirs.data}/examples_stacking_new_objects/result
+    - ${base_dirs.data}/examples_dinner_new_objects/result
+  index_dirs:
+    - index_10k
+    - index_10k
+    - index_10k
+    - index_10k
+  vocab_dir: ${base_dirs.data}/type_vocabs_coarse.json
+  max_num_objects: 7
+  max_num_other_objects: 5
+  max_num_shape_parameters: 5
+  max_num_rearrange_features: 0
+  max_num_anchor_features: 0
+  num_pts: 1024
+  filter_num_moved_objects_range:
+  data_augmentation: False
+
+DATALOADER:
+  batch_size: 128
+  num_workers: 8
+  pin_memory: True
+
+MODEL:
+  # transformer encoder
+  encoder_input_dim: 256
+  num_attention_heads: 8
+  encoder_hidden_dim: 512
+  encoder_dropout: 0.0
+  encoder_activation: relu
+  encoder_num_layers: 8
+  # output head
+  structure_dropout: 0
+  object_dropout: 0
+  # pc encoder
+  ignore_rgb: True
+  pc_emb_dim: 256
+  posed_pc_emb_dim: 256
+  # pose encoder
+  pose_emb_dim: 80
+  # language
+  word_emb_dim: 160
+  # diffusion step
+  time_emb_dim: 80
+  # sequence embeddings
+  max_seq_size: ${DATASET.max_num_objects}
+  max_token_type_size: 4
+  seq_pos_emb_dim: 8
+  seq_type_emb_dim: 8
+
+NOISE_SCHEDULE:
+  timesteps: 200
+
+LOSS:
+  type: huber
+
+OPTIMIZER:
+  learning_rate: 0.0001
+  l2: 0  #0.0001
+  # lr_restart: 3000
+  # warmup: 10
+
+TRAINER:
+  max_epochs: 200
+  gradient_clip_val: 1.0
+  gpus: 1
+  deterministic: False

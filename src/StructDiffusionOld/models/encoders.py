@@ -1,22 +1,6 @@
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-
-class SinusoidalPositionEmbeddings(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.dim = dim
-
-    def forward(self, time):
-        device = time.device
-        half_dim = self.dim // 2
-        embeddings = math.log(10000) / (half_dim - 1)
-        embeddings = torch.exp(torch.arange(half_dim, device=device) * -embeddings)
-        embeddings = time[:, None] * embeddings[None, :]
-        embeddings = torch.cat((embeddings.sin(), embeddings.cos()), dim=-1)
-        return embeddings
 
 
 class DropoutSampler(torch.nn.Module):
@@ -33,7 +17,8 @@ class DropoutSampler(torch.nn.Module):
         x = F.relu(self.linear(x))
         if self.dropout_rate > 0:
             x = F.dropout(x, self.dropout_rate)
-        x = F.relu(self.linear2(x))
+        x = F.relu(self.linear(x))
+        # x = F.dropout(x, self.dropout_rate)
         return self.predict(x)
 
 

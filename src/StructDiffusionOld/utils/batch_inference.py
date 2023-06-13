@@ -330,7 +330,6 @@ def move_pc_and_create_scene_new(obj_xyzs, obj_params, struct_pose, current_pc_p
 
     return new_obj_xyzs, goal_pc_pose, subsampled_scene_xyz, subsampled_pc_idxs, obj_pair_xyzs
 
-
 def move_pc(obj_xyzs, obj_params, struct_pose, current_pc_pose, device):
 
     # obj_xyzs: N, P, 3
@@ -368,68 +367,6 @@ def move_pc(obj_xyzs, obj_params, struct_pose, current_pc_pose, device):
 
     goal_pc_pose = goal_pc_pose.reshape(B, N, 4, 4)
     return new_obj_xyzs, goal_pc_pose
-
-
-def move_pc_and_create_scene_simple(obj_xyzs, struct_pose, pc_poses_in_struct):
-
-    device = obj_xyzs.device
-
-    # obj_xyzs: B, N, P, 3
-    # struct_pose: B, 1, 4, 4
-    # pc_poses_in_struct: B, N, 4, 4
-
-    B, N, _, _ = pc_poses_in_struct.shape
-    _, _, P, _ = obj_xyzs.shape
-
-    current_pc_poses = torch.eye(4).repeat(B, N, 1, 1).to(device)  # B, N, 4, 4
-    # print(torch.mean(obj_xyzs, dim=2).shape)
-    current_pc_poses[:, :, :3, 3] = torch.mean(obj_xyzs, dim=2)  # B, N, 4, 4
-    current_pc_poses = current_pc_poses.reshape(B * N, 4, 4)  # B x N, 4, 4
-
-    struct_pose = struct_pose.repeat(1, N, 1, 1) # B, N, 4, 4
-    struct_pose = struct_pose.reshape(B * N, 4, 4)  # B x 1, 4, 4
-    pc_poses_in_struct = pc_poses_in_struct.reshape(B * N, 4, 4)  # B x N, 4, 4
-
-    goal_pc_pose = struct_pose @ pc_poses_in_struct  # B x N, 4, 4
-    # print("goal pc poses")
-    # print(goal_pc_pose)
-    goal_pc_transform = goal_pc_pose @ torch.inverse(current_pc_poses)  # B x N, 4, 4
-
-    # important: pytorch3d uses row-major ordering, need to transpose each transformation matrix
-    transpose = tra3d.Transform3d(matrix=goal_pc_transform.transpose(1, 2))
-
-    new_obj_xyzs = obj_xyzs.reshape(B * N, P, 3)  # B x N, P, 3
-    new_obj_xyzs = transpose.transform_points(new_obj_xyzs)
-
-    # put it back to B, N, P, 3
-    new_obj_xyzs = new_obj_xyzs.reshape(B, N, P, 3)
-
-    # visualize_batch_pcs(new_obj_xyzs, B, N, P)
-
-    return new_obj_xyzs
-
-
-def compute_current_and_goal_pc_poses(obj_xyzs, struct_pose, pc_poses_in_struct):
-
-    device = obj_xyzs.device
-
-    # obj_xyzs: B, N, P, 3
-    # struct_pose: B, 1, 4, 4
-    # pc_poses_in_struct: B, N, 4, 4
-    B, N, _, _ = pc_poses_in_struct.shape
-    _, _, P, _ = obj_xyzs.shape
-
-    current_pc_poses = torch.eye(4).repeat(B, N, 1, 1).to(device)  # B, N, 4, 4
-    # print(torch.mean(obj_xyzs, dim=2).shape)
-    current_pc_poses[:, :, :3, 3] = torch.mean(obj_xyzs, dim=2)  # B, N, 4, 4
-
-    struct_pose = struct_pose.repeat(1, N, 1, 1)  # B, N, 4, 4
-    struct_pose = struct_pose.reshape(B * N, 4, 4)  # B x 1, 4, 4
-    pc_poses_in_struct = pc_poses_in_struct.reshape(B * N, 4, 4)  # B x N, 4, 4
-
-    goal_pc_poses = struct_pose @ pc_poses_in_struct  # B x N, 4, 4
-    goal_pc_poses = goal_pc_poses.reshape(B, N, 4, 4)  # B, N, 4, 4
-    return current_pc_poses, goal_pc_poses
 
 
 def sample_gaussians(mus, sigmas, sample_size):
