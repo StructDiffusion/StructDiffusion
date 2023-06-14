@@ -558,6 +558,33 @@ def fit_gaussians(samples, sigma_eps=0.01):
     return mus, sigmas
 
 
+def show_pcs_with_trimesh(obj_xyzs, obj_rgbs):
+    vis_pcs = [trimesh.PointCloud(obj_xyz, colors=np.concatenate([obj_rgb * 255, np.ones([obj_rgb.shape[0], 1]) * 255], axis=-1)) for
+               obj_xyz, obj_rgb in zip(obj_xyzs, obj_rgbs)]
+    scene = trimesh.Scene()
+    # add the coordinate frame first
+    geom = trimesh.creation.axis(0.01)
+    # scene.add_geometry(geom)
+    table = trimesh.creation.box(extents=[1.0, 1.0, 0.02])
+    table.apply_translation([0.5, 0, -0.01])
+    table.visual.vertex_colors = [150, 111, 87, 125]
+    scene.add_geometry(table)
+    # bounds = trimesh.creation.box(extents=[4.0, 4.0, 4.0])
+    bounds = trimesh.creation.icosphere(subdivisions=3, radius=3.1)
+    bounds.apply_translation([0, 0, 0])
+    bounds.visual.vertex_colors = [30, 30, 30, 30]
+    # scene.add_geometry(bounds)
+    scene.add_geometry(vis_pcs)
+    RT_4x4 = np.array([[-0.39560353822208355, -0.9183993826406329, 0.006357240869497738, 0.2651463080169481],
+                       [-0.797630370081598, 0.3401340617616391, -0.4980909683511864, 0.2225696480721997],
+                       [0.45528412367406523, -0.2021172778236285, -0.8671014777611122, 0.9449050652025951],
+                       [0.0, 0.0, 0.0, 1.0]])
+    RT_4x4 = np.linalg.inv(RT_4x4)
+    RT_4x4 = RT_4x4 @ np.diag([1, -1, -1, 1])
+    scene.camera_transform = RT_4x4
+    scene.show()
+
+
 def show_pcs_with_predictions(xyz, rgb, gts, predictions, add_coordinate_frame=False, return_buffer=False, add_table=True, side_view=True):
     """ Display point clouds """
 

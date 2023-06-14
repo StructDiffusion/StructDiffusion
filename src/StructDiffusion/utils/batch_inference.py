@@ -1,8 +1,9 @@
 import os
 import torch
+import numpy as np
 import pytorch3d.transforms as tra3d
 
-from StructDiffusion.utils.rearrangement import show_pcs_color_order
+from StructDiffusion.utils.rearrangement import show_pcs_color_order, show_pcs_with_trimesh
 from StructDiffusion.utils.pointnet import random_point_sample, index_points
 
 
@@ -374,7 +375,7 @@ def move_pc_and_create_scene_simple(obj_xyzs, struct_pose, pc_poses_in_struct):
 
     device = obj_xyzs.device
 
-    # obj_xyzs: B, N, P, 3
+    # obj_xyzs: B, N, P, 3 or 6
     # struct_pose: B, 1, 4, 4
     # pc_poses_in_struct: B, N, 4, 4
 
@@ -383,7 +384,7 @@ def move_pc_and_create_scene_simple(obj_xyzs, struct_pose, pc_poses_in_struct):
 
     current_pc_poses = torch.eye(4).repeat(B, N, 1, 1).to(device)  # B, N, 4, 4
     # print(torch.mean(obj_xyzs, dim=2).shape)
-    current_pc_poses[:, :, :3, 3] = torch.mean(obj_xyzs, dim=2)  # B, N, 4, 4
+    current_pc_poses[:, :, :3, 3] = torch.mean(obj_xyzs[:, :, :, :3], dim=2)  # B, N, 4, 4
     current_pc_poses = current_pc_poses.reshape(B * N, 4, 4)  # B x N, 4, 4
 
     struct_pose = struct_pose.repeat(1, N, 1, 1) # B, N, 4, 4
@@ -398,13 +399,11 @@ def move_pc_and_create_scene_simple(obj_xyzs, struct_pose, pc_poses_in_struct):
     # important: pytorch3d uses row-major ordering, need to transpose each transformation matrix
     transpose = tra3d.Transform3d(matrix=goal_pc_transform.transpose(1, 2))
 
-    new_obj_xyzs = obj_xyzs.reshape(B * N, P, 3)  # B x N, P, 3
-    new_obj_xyzs = transpose.transform_points(new_obj_xyzs)
+    new_obj_xyzs = obj_xyzs.reshape(B * N, P, -1)  # B x N, P, 3
+    new_obj_xyzs[:, :, :3] = transpose.transform_points(new_obj_xyzs[:, :, :3])
 
     # put it back to B, N, P, 3
-    new_obj_xyzs = new_obj_xyzs.reshape(B, N, P, 3)
-
-    # visualize_batch_pcs(new_obj_xyzs, B, N, P)
+    new_obj_xyzs = new_obj_xyzs.reshape(B, N, P, -1)
 
     return new_obj_xyzs
 
@@ -452,14 +451,13 @@ def fit_gaussians(samples, sigma_eps=0.01):
     return mus, sigmas
 
 
-def visualize_batch_pcs(obj_xyzs, B, N, P, verbose=True, limit_B=None, save_dir=None):
+def visualize_batch_pcs(obj_xyzs, B, verbose=False, limit_B=None, save_dir=None, trimesh=False):
     if limit_B is None:
         limit_B = B
 
-    vis_obj_xyzs = obj_xyzs.reshape(B, N, P, -1)
-    vis_obj_xyzs = vis_obj_xyzs[:limit_B]
+    vis_obj_xyzs = obj_xyzs[:limit_B]
 
-    if type(vis_obj_xyzs).__module__ == torch.__name__:
+    if torch.is_tensor(vis_obj_xyzs):
         if vis_obj_xyzs.is_cuda:
             vis_obj_xyzs = vis_obj_xyzs.detach().cpu()
         vis_obj_xyzs = vis_obj_xyzs.numpy()
@@ -469,15 +467,18 @@ def visualize_batch_pcs(obj_xyzs, B, N, P, verbose=True, limit_B=None, save_dir=
             print("example {}".format(bi))
             print(vis_obj_xyz.shape)
 
-        if save_dir:
-            if not os.path.exists(save_dir):
-                os.makedirs(save_dir)
-            save_path = os.path.join(save_dir, "b{}.jpg".format(bi))
-            show_pcs_color_order([xyz[:, :3] for xyz in vis_obj_xyz], None, visualize=False, add_coordinate_frame=False,
-                                 side_view=True, save_path=save_path)
+        if trimesh:
+            show_pcs_with_trimesh([xyz[:, :3] for xyz in vis_obj_xyz], [xyz[:, 3:] for xyz in vis_obj_xyz])
         else:
-            show_pcs_color_order([xyz[:, :3] for xyz in vis_obj_xyz], None, visualize=True, add_coordinate_frame=False,
-                                 side_view=True)
+            if save_dir:
+                if not os.path.exists(save_dir):
+                    os.makedirs(save_dir)
+                save_path = os.path.join(save_dir, "b{}.jpg".format(bi))
+                show_pcs_color_order([xyz[:, :3] for xyz in vis_obj_xyz], None, visualize=False, add_coordinate_frame=False,
+                                     side_view=True, save_path=save_path)
+            else:
+                show_pcs_color_order([xyz[:, :3] for xyz in vis_obj_xyz], None, visualize=True, add_coordinate_frame=False,
+                                     side_view=True)
 
 
 def pc_normalize_batch(pc):

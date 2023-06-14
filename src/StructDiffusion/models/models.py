@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from StructDiffusion.models.encoders import EncoderMLP, DropoutSampler, SinusoidalPositionEmbeddings
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from StructDiffusion.models.point_transformer import PointTransformerEncoderSmall
+from StructDiffusion.models.point_transformer_large import PointTransformerCls
 
 
 class TransformerDiffusionModel(torch.nn.Module):
@@ -24,6 +25,7 @@ class TransformerDiffusionModel(torch.nn.Module):
                  seq_pos_emb_dim=8, seq_type_emb_dim=8,
                  word_emb_dim=160,
                  time_emb_dim=80,
+                 use_virtual_structure_frame=True,
                  ):
         super(TransformerDiffusionModel, self).__init__()
 
@@ -46,7 +48,9 @@ class TransformerDiffusionModel(torch.nn.Module):
         self.posed_pc_encoder = EncoderMLP(pc_emb_dim, posed_pc_emb_dim, uses_pt=True)
 
         # for virtual structure frame
-        self.virtual_frame_embeddings = torch.nn.Embedding(1, posed_pc_emb_dim)
+        self.use_virtual_structure_frame = use_virtual_structure_frame
+        if use_virtual_structure_frame:
+            self.virtual_frame_embed = nn.Parameter(torch.randn(1, 1, posed_pc_emb_dim))  # B, 1, posed_pc_emb_dim
 
         # for language
         self.word_embeddings = torch.nn.Embedding(vocab_size, word_emb_dim, padding_idx=0)
@@ -71,48 +75,31 @@ class TransformerDiffusionModel(torch.nn.Module):
         self.struct_head = DropoutSampler(encoder_input_dim, action_dim, dropout_rate=structure_dropout)
         self.obj_head = DropoutSampler(encoder_input_dim, action_dim, dropout_rate=object_dropout)
 
-    def encode_posed_pc(self, xyzs, rgbs, batch_size, num_objects):
+    def encode_posed_pc(self, pcs, batch_size, num_objects):
         if self.ignore_rgb:
-            center_xyz, x = self.pc_encoder(xyzs, None)
+            center_xyz, x = self.pc_encoder(pcs[:, :, :3], None)
         else:
-            center_xyz, x = self.pc_encoder(xyzs, rgbs)
+            center_xyz, x = self.pc_encoder(pcs[:, :, :3], pcs[:, :, 3:])
         posed_pc_embed = self.posed_pc_encoder(x, center_xyz)
         posed_pc_embed = posed_pc_embed.reshape(batch_size, num_objects, -1)
         return posed_pc_embed
 
-    def forward(self, t, xyzs, obj_xyztheta_inputs, struct_xyztheta_inputs, sentence,
-                position_index, struct_position_index,
-                token_type_index, struct_token_type_index,
-                start_token,
-                object_pad_mask, struct_pad_mask, sentence_pad_mask):
+    def forward(self, t, pcs, sentence, poses, type_index, position_index, pad_mask):
 
-        # ToDo: add time embeddings
-
-        # print(xyzs.shape)
-        # print(object_pad_mask.shape)
-        # print(sentence.shape)
-        # print(sentence_pad_mask.shape)
-        # print(token_type_index.shape)
-        # print(obj_x_inputs.shape)
-        # print(obj_y_inputs.shape)
-        # print(obj_theta_inputs.shape)
-        # print(position_index.shape)
-
-        batch_size, num_target_objects, num_pts, _ = xyzs.shape
+        batch_size, num_objects, num_pts, _ = pcs.shape
+        _, num_poses, _ = poses.shape
         _, sentence_len = sentence.shape
+        _, total_len = type_index.shape
 
-        xyzs = xyzs.reshape(batch_size * num_target_objects, num_pts, -1)
-        posed_pc_embed = self.encode_posed_pc(xyzs, None, batch_size, num_target_objects)
+        pcs = pcs.reshape(batch_size * num_objects, num_pts, -1)
+        posed_pc_embed = self.encode_posed_pc(pcs, batch_size, num_objects)
 
-        xyztheta_embed = self.pose_encoder(torch.cat([struct_xyztheta_inputs, obj_xyztheta_inputs], dim=1))
+        pose_embed = self.pose_encoder(poses)
 
-        # at this point, obj_pc_embed has size [batch size, num objs, some dim], obj_xytheta_embed [batch size, num objs, some dim]
-        # combine them into [batch size, num objs, some dim]
-        # we need to shift obj_xytheta_embed to the right by one position and add a start token
-        start_token_embed = self.virtual_frame_embeddings(start_token)
-
-        tgt_obj_embed = torch.cat([start_token_embed, posed_pc_embed], dim=1)
-        tgt_obj_embed = torch.cat([xyztheta_embed, tgt_obj_embed], dim=-1)
+        if self.use_virtual_structure_frame:
+            virtual_frame_embed = self.virtual_frame_embed.repeat(batch_size, 1, 1)
+            posed_pc_embed = torch.cat([virtual_frame_embed, posed_pc_embed], dim=1)
+        tgt_obj_embed = torch.cat([pose_embed, posed_pc_embed], dim=-1)
 
         #########################
         sentence_embed = self.word_embeddings(sentence)
@@ -123,13 +110,15 @@ class TransformerDiffusionModel(torch.nn.Module):
         # transformer feat dim: obj pc + pose / word, time, token type, position
 
         time_embed = self.time_embeddings(t)  # B, dim
-        time_embed = time_embed.unsqueeze(1).repeat(1, sentence_len + 1 + num_target_objects, 1)  # B, L + 1 + N, dim
-        position_embed = self.position_embeddings(torch.cat([position_index[:, :sentence_len], struct_position_index, position_index[:, -num_target_objects:]], dim=1))
-        type_embed = self.type_embeddings(torch.cat([token_type_index[:, :sentence_len], struct_token_type_index, token_type_index[:, -num_target_objects:]], dim=1))
+        time_embed = time_embed.unsqueeze(1).repeat(1, total_len, 1)  # B, L, dim
+
+        position_embed = self.position_embeddings(position_index)
+        type_embed = self.type_embeddings(type_index)
 
         tgt_sequence_encode = torch.cat([sentence_embed, tgt_obj_embed], dim=1)
         tgt_sequence_encode = torch.cat([tgt_sequence_encode, time_embed, position_embed, type_embed], dim=-1)
-        tgt_pad_mask = torch.cat([sentence_pad_mask, struct_pad_mask, object_pad_mask], dim=1)  # B, L + 1 + N
+
+        tgt_pad_mask = pad_mask
 
         #########################
         # sequence_encode: [batch size, sequence_length, encoder input dimension]
@@ -142,14 +131,50 @@ class TransformerDiffusionModel(torch.nn.Module):
         encode = encode.transpose(1, 0)
         #########################
 
-        obj_encodes = encode[:, sentence_len + 1:, :]
-        obj_xyztheta_outputs = self.obj_head(obj_encodes)  # B, N, 3 + 6
+        target_encodes = encode[:, -num_poses:, :]
+        if self.use_virtual_structure_frame:
+            obj_encodes = target_encodes[:, 1:, :]
+            pred_obj_poses = self.obj_head(obj_encodes)  # B, N, 3 + 6
+            struct_encode = encode[:, 0, :].unsqueeze(1)
+            # use a different sampler for struct prediction since it should have larger variance than object predictions
+            pred_struct_pose = self.struct_head(struct_encode)  # B, 1, 3 + 6
+            pred_poses = torch.cat([pred_struct_pose, pred_obj_poses], dim=1)
+        else:
+            pred_poses = self.obj_head(target_encodes)  # B, N, 3 + 6
 
-        struct_encodes = encode[:, sentence_len, :].unsqueeze(1)  # B, 1, 3 + 6
-        # use a different sampler for struct prediction since it should have larger variance than object predictions
-        struct_xyztheta_outputs = self.struct_head(struct_encodes)
+        assert pred_poses.shape == poses.shape
 
-        # predictions = {"obj_xyztheta_outputs": obj_xyztheta_outputs,
-        #                "struct_xyztheta_outputs": struct_xyztheta_outputs}
+        return pred_poses
 
-        return struct_xyztheta_outputs, obj_xyztheta_outputs
+
+class FocalLoss(nn.Module):
+    def __init__(self, gamma=2, alpha=.25):
+        super(FocalLoss, self).__init__()
+        # self.alpha = torch.tensor([alpha, 1-alpha])
+        self.gamma = gamma
+
+    def forward(self, inputs, targets):
+        BCE_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
+        pt = torch.exp(-BCE_loss)
+        # targets = targets.type(torch.long)
+        # at = self.alpha.gather(0, targets.data.view(-1))
+        # F_loss = at*(1-pt)**self.gamma * BCE_loss
+        F_loss = (1 - pt)**self.gamma * BCE_loss
+        return F_loss.mean()
+
+
+class PCTDiscriminator(torch.nn.Module):
+
+    def __init__(self, max_num_objects, include_env_pc=False, pct_random_sampling=False):
+
+        super(PCTDiscriminator, self).__init__()
+
+        # input_dim: xyz + one hot for each object
+        if include_env_pc:
+            self.classifier = PointTransformerCls(input_dim=max_num_objects + 1 + 3, output_dim=1, use_random_sampling=pct_random_sampling)
+        else:
+            self.classifier = PointTransformerCls(input_dim=max_num_objects + 3, output_dim=1, use_random_sampling=pct_random_sampling)
+
+    def forward(self, scene_xyz):
+        label = self.classifier(scene_xyz)
+        return label

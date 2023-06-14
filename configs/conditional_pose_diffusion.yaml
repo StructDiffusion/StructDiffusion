@@ -6,28 +6,37 @@ WANDB:
   name: conditional_pose_diffusion
 
 DATASET:
-  dirs:
+  data_roots:
     - ${base_dirs.data}/examples_circle_new_objects/result
     - ${base_dirs.data}/examples_line_new_objects/result
     - ${base_dirs.data}/examples_stacking_new_objects/result
     - ${base_dirs.data}/examples_dinner_new_objects/result
-  index_dirs:
+  index_roots:
     - index_10k
     - index_10k
     - index_10k
     - index_10k
   vocab_dir: ${base_dirs.data}/type_vocabs_coarse.json
-  max_num_objects: 7
-  max_num_other_objects: 5
+
+  # important
+  use_virtual_structure_frame: True
+  ignore_distractor_objects: True
+  ignore_rgb: True
+
+  # the following are determined by the dataset
+  max_num_target_objects: 7
+  max_num_distractor_objects: 5
   max_num_shape_parameters: 5
+  # set to zeros because they are not used for now
   max_num_rearrange_features: 0
   max_num_anchor_features: 0
+
   num_pts: 1024
   filter_num_moved_objects_range:
   data_augmentation: False
 
 DATALOADER:
-  batch_size: 128
+  batch_size: 64
   num_workers: 8
   pin_memory: True
 
@@ -43,9 +52,9 @@ MODEL:
   structure_dropout: 0
   object_dropout: 0
   # pc encoder
-  ignore_rgb: True
+  ignore_rgb: ${DATASET.ignore_rgb}
   pc_emb_dim: 256
-  posed_pc_emb_dim: 256
+  posed_pc_emb_dim: 80
   # pose encoder
   pose_emb_dim: 80
   # language
@@ -53,10 +62,13 @@ MODEL:
   # diffusion step
   time_emb_dim: 80
   # sequence embeddings
-  max_seq_size: ${DATASET.max_num_objects}
+  # max_num_target_objects (+ max_num_distractor_objects if not ignore_distractor_objects)
+  max_seq_size: 7
   max_token_type_size: 4
   seq_pos_emb_dim: 8
   seq_type_emb_dim: 8
+  # virtual frame
+  use_virtual_structure_frame: ${DATASET.use_virtual_structure_frame}
 
 NOISE_SCHEDULE:
   timesteps: 200
@@ -65,8 +77,8 @@ LOSS:
   type: huber
 
 OPTIMIZER:
-  learning_rate: 0.0001
-  l2: 0  #0.0001
+  lr: 0.0001
+  weight_decay: 0  #0.0001
   # lr_restart: 3000
   # warmup: 10
 
@@ -75,3 +87,4 @@ TRAINER:
   gradient_clip_val: 1.0
   gpus: 1
   deterministic: False
+  # enable_progress_bar: False

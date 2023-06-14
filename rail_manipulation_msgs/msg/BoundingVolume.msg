@@ -1,2 +1,0 @@
-geometry_msgs/PoseStamped pose   # bounding volume pose (with respect to point cloud center)
-geometry_msgs/Vector3 dimensions # x, y, z dimensions (with respect to coordinate frame and rotation defined in pose)

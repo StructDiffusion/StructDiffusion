@@ -1,0 +1,42 @@
+random_seed: 1
+
+WANDB:
+  project: StructDiffusion
+  save_dir: ${base_dirs.wandb_dir}
+  name: pairwise_collision
+
+DATASET:
+  urdf_pc_idx_file: ${base_dirs.pairwise_collision_data}/urdf_pc_idx.pkl
+  collision_data_dir: ${base_dirs.pairwise_collision_data}
+
+  # important
+  num_pts: 1024
+  num_scene_pts: 2048
+  normalize_pc: True
+  random_rotation: True
+  data_augmentation: False
+
+DATALOADER:
+  batch_size: 32
+  num_workers: 8
+  pin_memory: True
+
+MODEL:
+  max_num_objects: 2
+  include_env_pc: False
+  pct_random_sampling: True
+
+LOSS:
+  type: Focal
+  focal_gamma: 2
+
+OPTIMIZER:
+  lr: 0.0001
+  weight_decay: 0
+
+TRAINER:
+  max_epochs: 200
+  gradient_clip_val: 1.0
+  gpus: 1
+  deterministic: False
+  # enable_progress_bar: False

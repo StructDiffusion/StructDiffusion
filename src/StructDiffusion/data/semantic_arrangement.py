@@ -9,6 +9,8 @@ from tqdm import tqdm
 import json
 import random
 
+from torch.utils.data import DataLoader
+
 # Local imports
 from StructDiffusion.utils.rearrangement import show_pcs, get_pts, combine_and_sample_xyzs
 from StructDiffusion.language.tokenizer import Tokenizer
@@ -21,10 +23,12 @@ import StructDiffusion.utils.transformations as tra
 class SemanticArrangementDataset(torch.utils.data.Dataset):
 
     def __init__(self, data_roots, index_roots, split, tokenizer,
-                 max_num_objects=11, max_num_other_objects=5,
+                 max_num_target_objects=11, max_num_distractor_objects=5,
                  max_num_shape_parameters=7, max_num_rearrange_features=1, max_num_anchor_features=3,
-                 num_pts=1024, filter_num_moved_objects_range=None, shuffle_object_index=False,
-                 data_augmentation=True, debug=False):
+                 num_pts=1024,
+                 use_virtual_structure_frame=True, ignore_distractor_objects=True, ignore_rgb=True,
+                 filter_num_moved_objects_range=None, shuffle_object_index=False,
+                 data_augmentation=True, debug=False, **kwargs):
         """
 
         Note: setting filter_num_moved_objects_range=[k, k] and max_num_objects=k will create no padding for target objs
@@ -41,13 +45,16 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
         :param use_stored_arrangement_indices:
         :param kwargs:
         """
-        self.data_roots = data_roots
+
+        self.use_virtual_structure_frame = use_virtual_structure_frame
+        self.ignore_distractor_objects = ignore_distractor_objects
+        self.ignore_rgb = ignore_rgb and not debug
 
         self.num_pts = num_pts
         self.debug = debug
 
-        self.max_num_objects = max_num_objects
-        self.max_num_other_objects = max_num_other_objects
+        self.max_num_objects = max_num_target_objects
+        self.max_num_other_objects = max_num_distractor_objects
         self.max_num_shape_parameters = max_num_shape_parameters
         self.max_num_rearrange_features = max_num_rearrange_features
         self.max_num_anchor_features = max_num_anchor_features
@@ -57,6 +64,7 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
         self.tokenizer = tokenizer
 
         # retrieve data
+        self.data_roots = data_roots
         self.arrangement_data = []
         arrangement_steps = []
         for ddx in range(len(data_roots)):
@@ -71,6 +79,8 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
         # only keep the goal, ignore the intermediate steps
         for filename, step_t in arrangement_steps:
             if step_t == 0:
+                if "data00026058" in filename or "data00011415" in filename or "data00026061" in filename or "data00700565" in filename:
+                    continue
                 self.arrangement_data.append((filename, step_t))
         # if specified, filter data
         if filter_num_moved_objects_range is not None:
@@ -263,12 +273,10 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
             initial_scene = scene
 
         # getting object point clouds
-        obj_xyzs = []
-        obj_rgbs = []
+        obj_pcs = []
         obj_pad_mask = []
-        obj_pc_centers = []
-        other_obj_xyzs = []
-        other_obj_rgbs = []
+        current_pc_poses = []
+        other_obj_pcs = []
         other_obj_pad_mask = []
         for obj in all_objs:
             obj_mask = np.logical_and(seg == ids[obj], valid)
@@ -279,13 +287,19 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
                 raise Exception
 
             if obj in target_objs:
-                obj_xyzs.append(obj_xyz)
-                obj_rgbs.append(obj_rgb)
+                if self.ignore_rgb:
+                    obj_pcs.append(obj_xyz)
+                else:
+                    obj_pcs.append(torch.concat([obj_xyz, obj_rgb], dim=-1))
                 obj_pad_mask.append(0)
-                obj_pc_centers.append(torch.mean(obj_xyz, dim=0).numpy())
+                pc_pose = np.eye(4)
+                pc_pose[:3, 3] = torch.mean(obj_xyz, dim=0).numpy()
+                current_pc_poses.append(pc_pose)
             elif obj in other_objs:
-                other_obj_xyzs.append(obj_xyz)
-                other_obj_rgbs.append(obj_rgb)
+                if self.ignore_rgb:
+                    other_obj_pcs.append(obj_xyz)
+                else:
+                    other_obj_pcs.append(torch.concat([obj_xyz, obj_rgb], dim=-1))
                 other_obj_pad_mask.append(0)
             else:
                 raise Exception
@@ -293,21 +307,17 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
         ###################################
         # computes goal positions for objects
         # Important: because of the noises we added to point clouds, the rearranged point clouds will not be perfect
-        structure_pose = tra.euler_matrix(structure_parameters["rotation"][0], structure_parameters["rotation"][1],
-                                          structure_parameters["rotation"][2])
-        structure_pose[:3, 3] = [structure_parameters["position"][0], structure_parameters["position"][1],
-                                 structure_parameters["position"][2]]
-        structure_pose_inv = np.linalg.inv(structure_pose)
+        if self.use_virtual_structure_frame:
+            goal_structure_pose = tra.euler_matrix(structure_parameters["rotation"][0], structure_parameters["rotation"][1],
+                                              structure_parameters["rotation"][2])
+            goal_structure_pose[:3, 3] = [structure_parameters["position"][0], structure_parameters["position"][1],
+                                     structure_parameters["position"][2]]
+            goal_structure_pose_inv = np.linalg.inv(goal_structure_pose)
 
-        current_pc_poses = []
         goal_obj_poses = []
         current_obj_poses = []
-        goal_pc_poses_in_struct = []
-        for obj, obj_pc_center in zip(target_objs, obj_pc_centers):
-            current_pc_pose = np.eye(4)
-            current_pc_pose[:3, 3] = obj_pc_center[:3]
-            current_pc_poses.append(current_pc_pose)
-
+        goal_pc_poses = []
+        for obj, current_pc_pose in zip(target_objs, current_pc_poses):
             goal_pose = h5[obj][0]
             current_pose = h5[obj][step_t]
             if inference_mode:
@@ -315,45 +325,43 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
                 current_obj_poses.append(current_pose)
 
             goal_pc_pose = goal_pose @ np.linalg.inv(current_pose) @ current_pc_pose
-            goal_pc_pose_in_struct = structure_pose_inv @ goal_pc_pose
-            goal_pc_poses_in_struct.append(goal_pc_pose_in_struct)
+            if self.use_virtual_structure_frame:
+                goal_pc_pose = goal_structure_pose_inv @ goal_pc_pose
+            goal_pc_poses.append(goal_pc_pose)
 
         # transform current object point cloud to the goal point cloud in the world frame
         if self.debug:
-            new_obj_xyzs = copy.deepcopy(obj_xyzs)
-            new_obj_rgbs = copy.deepcopy(obj_rgbs)
-            for i, obj_xyz in enumerate(obj_xyzs):
+            new_obj_pcs = [copy.deepcopy(pc.numpy()) for pc in obj_pcs]
+            for i, obj_pc in enumerate(new_obj_pcs):
 
-                current_pc_pose = np.eye(4)
-                current_pc_pose[:3, 3] = obj_pc_centers[i][:3]
-                # goal_pc_pose = goal_pc_poses[i]
-                goal_pc_pose_in_struct = goal_pc_poses_in_struct[i]
+                current_pc_pose = current_pc_poses[i]
+                goal_pc_pose = goal_pc_poses[i]
+                if self.use_virtual_structure_frame:
+                    goal_pc_pose = goal_structure_pose @ goal_pc_pose
                 print("current pc pose", current_pc_pose)
-                print("goal pc pose in struct", goal_pc_pose_in_struct)
+                print("goal pc pose", goal_pc_pose)
 
-                # if we don't use structure frame, goal_pc_transform = goal_pc_pose @ np.linalg.inv(current_pc_pose)
-                # goal_pc_transform = goal_pc_pose @ np.linalg.inv(current_pc_pose)
-                goal_pc_transform = structure_pose @ goal_pc_pose_in_struct @ np.linalg.inv(current_pc_pose)
+                goal_pc_transform = goal_pc_pose @ np.linalg.inv(current_pc_pose)
                 print("transform", goal_pc_transform)
-                new_obj_xyz = trimesh.transform_points(obj_xyz, goal_pc_transform)
+                new_obj_pc = copy.deepcopy(obj_pc)
+                new_obj_pc[:, :3] = trimesh.transform_points(obj_pc[:, :3], goal_pc_transform)
+                print(new_obj_pc.shape)
 
                 # visualize rearrangement sequence (new_obj_xyzs), the current object before moving (obj_xyz), and other objects
-                new_obj_xyz = torch.tensor(new_obj_xyz, dtype=obj_xyz.dtype)
-                new_obj_xyzs[i] = new_obj_xyz
-                new_obj_rgbs[i] = np.tile(np.array([1, 0, 0], dtype=np.float), (new_obj_xyz.shape[0], 1))
-                new_obj_rgb_current = np.tile(np.array([0, 1, 0], dtype=np.float), (new_obj_xyz.shape[0], 1))
-                show_pcs(new_obj_xyzs + other_obj_xyzs + [obj_xyz], new_obj_rgbs + other_obj_rgbs + [new_obj_rgb_current], add_coordinate_frame=True)
-
-            show_pcs(new_obj_xyzs, new_obj_rgbs, add_coordinate_frame=True)
+                new_obj_pcs[i] = new_obj_pc
+                new_obj_pcs[i][:, 3:] = np.tile(np.array([1, 0, 0], dtype=np.float), (new_obj_pc.shape[0], 1))
+                new_obj_rgb_current = np.tile(np.array([0, 1, 0], dtype=np.float), (new_obj_pc.shape[0], 1))
+                show_pcs([pc[:, :3] for pc in new_obj_pcs] + [pc[:, :3] for pc in other_obj_pcs] + [obj_pc[:, :3]],
+                         [pc[:, 3:] for pc in new_obj_pcs] + [pc[:, 3:] for pc in other_obj_pcs] + [new_obj_rgb_current],
+                         add_coordinate_frame=True)
+            show_pcs([pc[:, :3] for pc in new_obj_pcs], [pc[:, 3:] for pc in new_obj_pcs], add_coordinate_frame=True)
 
         # pad data
         for i in range(self.max_num_objects - len(target_objs)):
-            obj_xyzs.append(torch.zeros([1024, 3], dtype=torch.float32))
-            obj_rgbs.append(torch.zeros([1024, 3], dtype=torch.float32))
+            obj_pcs.append(torch.zeros_like(obj_pcs[0], dtype=torch.float32))
             obj_pad_mask.append(1)
         for i in range(self.max_num_other_objects - len(other_objs)):
-            other_obj_xyzs.append(torch.zeros([1024, 3], dtype=torch.float32))
-            other_obj_rgbs.append(torch.zeros([1024, 3], dtype=torch.float32))
+            other_obj_pcs.append(torch.zeros_like(obj_pcs[0], dtype=torch.float32))
             other_obj_pad_mask.append(1)
 
         ###################################
@@ -386,20 +394,9 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
             sentence_pad_mask.append(1)
 
         ###################################
-        obj_xyztheta_inputs = []
-        struct_xyztheta_inputs = []
-
-        struct_xyz_theta = structure_pose[:3, 3].tolist() + structure_pose[:3, :3].flatten().tolist()
-        struct_xyztheta_inputs.append(struct_xyz_theta)
-
-        # objects that need to be rearranged
-        for obj_idx, obj in enumerate(target_objs):
-            obj_xyztheta = goal_pc_poses_in_struct[obj_idx][:3, 3].tolist() + goal_pc_poses_in_struct[obj_idx][:3, :3].flatten().tolist()
-            obj_xyztheta_inputs.append(obj_xyztheta)
-
         # paddings
         for i in range(self.max_num_objects - len(target_objs)):
-            obj_xyztheta_inputs.append([0] * 12)
+            goal_pc_poses.append(np.eye(4))
 
         ###################################
         if self.debug:
@@ -409,52 +406,61 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
             print("other objects:", other_objs)
             print("goal specification:", goal_specification)
             print("sentence:", sentence)
-            print("obj_xyztheta_inputs", obj_xyztheta_inputs)
-            print("struct_xyztheta_inputs", struct_xyztheta_inputs)
-            show_pcs(obj_xyzs + other_obj_xyzs, obj_rgbs + other_obj_rgbs, add_coordinate_frame=True)
+            show_pcs([pc[:, :3] for pc in obj_pcs + other_obj_pcs], [pc[:, 3:] for pc in obj_pcs + other_obj_pcs], add_coordinate_frame=True)
 
-        assert len(obj_xyzs) == len(obj_xyztheta_inputs)
+        assert len(obj_pcs) == len(goal_pc_poses)
         ###################################
-
-        # used to indicate whether the token is an object point cloud or a part of the instruction
-        token_type_index = [0] * (self.max_num_shape_parameters) + [1] * (self.max_num_other_objects) + [2] * self.max_num_objects
-        position_index = list(range(self.max_num_shape_parameters)) + list(range(self.max_num_other_objects)) + list(range(self.max_num_objects))
-
-        struct_position_index = [0]
-        struct_token_type_index = [3]
-        struct_pad_mask = [0]
 
         # shuffle the position of objects
         if shuffle_object_index:
             shuffle_target_object_indices = list(range(len(target_objs)))
             random.shuffle(shuffle_target_object_indices)
             shuffle_object_indices = shuffle_target_object_indices + list(range(len(target_objs), self.max_num_objects))
-            obj_xyzs = [obj_xyzs[i] for i in shuffle_object_indices]
-            obj_rgbs = [obj_rgbs[i] for i in shuffle_object_indices]
-            obj_xyztheta_inputs = [obj_xyztheta_inputs[i] for i in shuffle_object_indices]
-            obj_pad_mask = [obj_pad_mask[i] for i in shuffle_object_indices]
+            obj_pcs = [obj_pcs[i] for i in shuffle_object_indices]
+            goal_pc_poses = [goal_pc_poses[i] for i in shuffle_object_indices]
             if inference_mode:
                 goal_obj_poses = [goal_obj_poses[i] for i in shuffle_object_indices]
                 current_obj_poses = [current_obj_poses[i] for i in shuffle_object_indices]
                 target_objs = [target_objs[i] for i in shuffle_target_object_indices]
                 current_pc_poses = [current_pc_poses[i] for i in shuffle_object_indices]
 
+        ###################################
+        if self.use_virtual_structure_frame:
+            if self.ignore_distractor_objects:
+                # language, structure virtual frame, target objects
+                pcs = obj_pcs
+                type_index = [0] * self.max_num_shape_parameters + [2] + [3] * self.max_num_objects
+                position_index = list(range(self.max_num_shape_parameters)) + [0] + list(range(self.max_num_objects))
+                pad_mask = sentence_pad_mask + [0] + obj_pad_mask
+            else:
+                # language, distractor objects, structure virtual frame, target objects
+                pcs = other_obj_pcs + obj_pcs
+                type_index = [0] * self.max_num_shape_parameters + [1] * self.max_num_other_objects + [2] + [3] * self.max_num_objects
+                position_index = list(range(self.max_num_shape_parameters)) + list(range(self.max_num_other_objects)) + [0] + list(range(self.max_num_objects))
+                pad_mask = sentence_pad_mask + other_obj_pad_mask + [0] + obj_pad_mask
+            goal_poses = [goal_structure_pose] + goal_pc_poses
+        else:
+            if self.ignore_distractor_objects:
+                # language, target objects
+                pcs = obj_pcs
+                type_index = [0] * self.max_num_shape_parameters + [3] * self.max_num_objects
+                position_index = list(range(self.max_num_shape_parameters)) + list(range(self.max_num_objects))
+                pad_mask = sentence_pad_mask + obj_pad_mask
+            else:
+                # language, distractor objects, target objects
+                pcs = other_obj_pcs + obj_pcs
+                type_index = [0] * self.max_num_shape_parameters + [1] * self.max_num_other_objects + [3] * self.max_num_objects
+                position_index = list(range(self.max_num_shape_parameters)) + list(range(self.max_num_other_objects)) + list(range(self.max_num_objects))
+                pad_mask = sentence_pad_mask + other_obj_pad_mask + obj_pad_mask
+            goal_poses = goal_pc_poses
+
         datum = {
-            "xyzs": obj_xyzs,
-            "rgbs": obj_rgbs,
-            "obj_pad_mask": obj_pad_mask,
-            "other_xyzs": other_obj_xyzs,
-            "other_rgbs": other_obj_rgbs,
-            "other_obj_pad_mask": other_obj_pad_mask,
+            "pcs": pcs,
             "sentence": sentence,
-            "sentence_pad_mask": sentence_pad_mask,
-            "obj_xyztheta_inputs": obj_xyztheta_inputs,
-            "token_type_index": token_type_index,
+            "goal_poses": goal_poses,
+            "type_index": type_index,
             "position_index": position_index,
-            "struct_xyztheta_inputs": struct_xyztheta_inputs,
-            "struct_position_index": struct_position_index,
-            "struct_token_type_index": struct_token_type_index,
-            "struct_pad_mask": struct_pad_mask,
+            "pad_mask": pad_mask,
             "t": step_t,
             "filename": filename
         }
@@ -472,43 +478,17 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
         return datum
 
     @staticmethod
-    def convert_to_tensors(datum, tokenizer, robot_mode=False):
-
-        if robot_mode:
-            tensors = {
-                "xyzs": torch.stack(datum["xyzs"], dim=0),
-                "obj_pad_mask": torch.LongTensor(datum["obj_pad_mask"]),
-                "sentence": torch.LongTensor([tokenizer.tokenize(*i) for i in datum["sentence"]]),
-                "sentence_pad_mask": torch.LongTensor(datum["sentence_pad_mask"]),
-                "token_type_index": torch.LongTensor(datum["token_type_index"]),
-                "position_index": torch.LongTensor(datum["position_index"]),
-                "struct_position_index": torch.LongTensor(datum["struct_position_index"]),
-                "struct_token_type_index": torch.LongTensor(datum["struct_token_type_index"]),
-                "struct_pad_mask": torch.LongTensor(datum["struct_pad_mask"]),
-                "obj_xyztheta_inputs": torch.FloatTensor(datum["obj_xyztheta_inputs"]),
-                "struct_xyztheta_inputs": torch.FloatTensor(datum["struct_xyztheta_inputs"]),
-            }
-        else:
-            tensors = {
-                "xyzs": torch.stack(datum["xyzs"], dim=0),
-                "rgbs": torch.stack(datum["rgbs"], dim=0),
-                "obj_pad_mask": torch.LongTensor(datum["obj_pad_mask"]),
-                "other_xyzs": torch.stack(datum["other_xyzs"], dim=0),
-                "other_rgbs": torch.stack(datum["other_rgbs"], dim=0),
-                "other_obj_pad_mask": torch.LongTensor(datum["other_obj_pad_mask"]),
-                "sentence": torch.LongTensor([tokenizer.tokenize(*i) for i in datum["sentence"]]),
-                "sentence_pad_mask": torch.LongTensor(datum["sentence_pad_mask"]),
-                "token_type_index": torch.LongTensor(datum["token_type_index"]),
-                "position_index": torch.LongTensor(datum["position_index"]),
-                "struct_position_index": torch.LongTensor(datum["struct_position_index"]),
-                "struct_token_type_index": torch.LongTensor(datum["struct_token_type_index"]),
-                "struct_pad_mask": torch.LongTensor(datum["struct_pad_mask"]),
-                "obj_xyztheta_inputs": torch.FloatTensor(datum["obj_xyztheta_inputs"]),
-                "struct_xyztheta_inputs": torch.FloatTensor(datum["struct_xyztheta_inputs"]),
-                "t": datum["t"],
-                "filename": datum["filename"]
-            }
-
+    def convert_to_tensors(datum, tokenizer):
+        tensors = {
+            "pcs": torch.stack(datum["pcs"], dim=0),
+            "sentence": torch.LongTensor(np.array([tokenizer.tokenize(*i) for i in datum["sentence"]])),
+            "goal_poses": torch.FloatTensor(np.array(datum["goal_poses"])),
+            "type_index": torch.LongTensor(np.array(datum["type_index"])),
+            "position_index": torch.LongTensor(np.array(datum["position_index"])),
+            "pad_mask": torch.LongTensor(np.array(datum["pad_mask"])),
+            "t": datum["t"],
+            "filename": datum["filename"]
+        }
         return tensors
 
     def __getitem__(self, idx):
@@ -517,6 +497,20 @@ class SemanticArrangementDataset(torch.utils.data.Dataset):
                                         self.tokenizer)
 
         return datum
+
+    def single_datum_to_batch(self, x, num_samples, device, inference_mode=True):
+        tensor_x = {}
+
+        tensor_x["pcs"] = x["pcs"].to(device)[None, :, :, :].repeat(num_samples, 1, 1, 1)
+        tensor_x["sentence"] = x["sentence"].to(device)[None, :].repeat(num_samples, 1)
+        if not inference_mode:
+            tensor_x["goal_poses"] = x["goal_poses"].to(device)[None, :, :, :].repeat(num_samples, 1, 1, 1)
+
+        tensor_x["type_index"] = x["type_index"].to(device)[None, :].repeat(num_samples, 1)
+        tensor_x["position_index"] = x["position_index"].to(device)[None, :].repeat(num_samples, 1)
+        tensor_x["pad_mask"] = x["pad_mask"].to(device)[None, :].repeat(num_samples, 1)
+
+        return tensor_x
 
 
 def compute_min_max(dataloader):
@@ -530,29 +524,16 @@ def compute_min_max(dataloader):
     # tensor([0.9199, 0.3710, 0.0000, 1.0000, 1.0000, 0.0000, 1.0000, 1.0000, -0.0000,
     #         0.0000, 0.0000, 1.0000])
 
-    obj_min = torch.ones(12) * 10000
-    obj_max = torch.ones(12) * -10000
+    min_value = torch.ones(16) * 10000
+    max_value = torch.ones(16) * -10000
     for d in tqdm(dataloader):
-        obj_xyz_theta = d["obj_xyztheta_inputs"]
-        obj_xyz_theta = obj_xyz_theta.reshape(-1, 12)
-        current_max, _ = torch.max(obj_xyz_theta, dim=0)
-        current_min, _ = torch.min(obj_xyz_theta, dim=0)
-        obj_max[obj_max < current_max] = current_max[obj_max < current_max]
-        obj_min[obj_min > current_min] = current_min[obj_min > current_min]
-    print(obj_min)
-    print(obj_max)
-
-    struct_min = torch.ones(12) * 10000
-    struct_max = torch.ones(12) * -10000
-    for d in tqdm(dataloader):
-        struct_xyz_theta = d["struct_xyztheta_inputs"]
-        struct_xyz_theta = struct_xyz_theta.reshape(-1, 12)
-        current_max, _ = torch.max(struct_xyz_theta, dim=0)
-        current_min, _ = torch.min(struct_xyz_theta, dim=0)
-        struct_max[struct_max < current_max] = current_max[struct_max < current_max]
-        struct_min[struct_min > current_min] = current_min[struct_min > current_min]
-    print(struct_min)
-    print(struct_max)
+        goal_poses = d["goal_poses"]
+        goal_poses = goal_poses.reshape(-1, 16)
+        current_max, _ = torch.max(goal_poses, dim=0)
+        current_min, _ = torch.min(goal_poses, dim=0)
+        max_value[max_value < current_max] = current_max[max_value < current_max]
+        max_value[max_value > current_min] = current_min[max_value > current_min]
+    print(f"{min_value} - {max_value}")
 
 
 if __name__ == "__main__":
@@ -561,64 +542,38 @@ if __name__ == "__main__":
 
     data_roots = []
     index_roots = []
-    for shape, index in [("circle", "index_10k")]: # [("circle", "index_34k"), ("line", "index_42k"), ("tower", "index_13k"), ("dinner", "index_24k")]:
+    for shape, index in [("circle", "index_10k"), ("line", "index_10k"), ("stacking", "index_10k"), ("dinner", "index_10k")]:
         data_roots.append("/home/weiyu/data_drive/data_new_objects/examples_{}_new_objects/result".format(shape))
         index_roots.append(index)
 
     dataset = SemanticArrangementDataset(data_roots=data_roots,
                                          index_roots=index_roots,
-                                         split="train", tokenizer=tokenizer,
-                                         max_num_objects=7,
-                                         max_num_other_objects=5,
+                                         split="valid", tokenizer=tokenizer,
+                                         max_num_target_objects=7,
+                                         max_num_distractor_objects=5,
                                          max_num_shape_parameters=5,
                                          max_num_rearrange_features=0,
                                          max_num_anchor_features=0,
                                          num_pts=1024,
+                                         use_virtual_structure_frame=True,
+                                         ignore_distractor_objects=True,
+                                         ignore_rgb=True,
                                          filter_num_moved_objects_range=None,  # [5, 5]
                                          data_augmentation=False,
                                          shuffle_object_index=False,
-                                         debug=True)
+                                         debug=False)
 
-    print(len(dataset))
-    for d in dataset:
-        print("\n\n" + "="*100)
+    # print(len(dataset))
+    # for d in dataset:
+    #     print("\n\n" + "="*100)
 
-    # dataloader = DataLoader(dataset, batch_size=3, shuffle=False, num_workers=8)
-    # for i, d in enumerate(dataloader):
-    #     print(i)
-    #     for k in d:
-    #         if isinstance(d[k], torch.Tensor):
-    #             print("--size", k, d[k].shape)
-    #     for k in d:
-    #         print(k, d[k])
-    #
-    #     input("next?")
-
-    # tokenizer = Tokenizer("/home/weiyu/data_drive/data_new_objects/type_vocabs.json")
-    # for shape, index in [("circle", "index_34k"), ("line", "index_42k"), ("tower", "index_13k"), ("dinner", "index_24k")]:
-    #     for split in ["train", "valid", "test"]:
-    #         dataset = SemanticArrangementDataset(data_root="/home/weiyu/data_drive/data_new_objects/examples_{}_new_objects/result".format(shape),
-    #                                              index_root=index,
-    #                                              split=split, tokenizer=tokenizer,
-    #                                              max_num_objects=7,
-    #                                              max_num_other_objects=5,
-    #                                              max_num_shape_parameters=5,
-    #                                              max_num_rearrange_features=0,
-    #                                              max_num_anchor_features=0,
-    #                                              num_pts=1024,
-    #                                              debug=True)
-    #
-    #         for i in range(0, 1):
-    #             d = dataset.get_raw_data(i)
-    #             d = dataset.convert_to_tensors(d, dataset.tokenizer)
-    #             for k in d:
-    #                 if torch.is_tensor(d[k]):
-    #                     print("--size", k, d[k].shape)
-    #             for k in d:
-    #                 print(k, d[k])
-    #             input("next?")
-
-            # dataloader = DataLoader(dataset, batch_size=64, shuffle=False, num_workers=8,
-            #                         collate_fn=SemanticArrangementDataset.collate_fn)
-            # for d in tqdm(dataloader):
-            #     pass
+    dataloader = DataLoader(dataset, batch_size=64, shuffle=False, num_workers=8)
+    for i, d in enumerate(tqdm(dataloader)):
+        pass
+        # for k in d:
+        #     if isinstance(d[k], torch.Tensor):
+        #         print("--size", k, d[k].shape)
+        # for k in d:
+        #     print(k, d[k])
+        #
+        # input("next?")

@@ -2,5 +2,6 @@ base_dirs:
   data: /home/weiyu/data_drive/StructDiffusion/training_data
   pairwise_collision_data: /home/weiyu/data_drive/StructDiffusion/pairwise_collision_data
   assets_dir: /home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_large
+  experiment: /home/weiyu/data_drive/StructDiffusion/experiments
 
   wandb_dir: /home/weiyu/data_drive/StructDiffusion/wandb_logs

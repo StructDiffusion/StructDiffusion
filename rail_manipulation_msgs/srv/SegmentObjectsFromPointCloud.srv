@@ -1,3 +1,0 @@
-sensor_msgs/PointCloud2 point_cloud
----
-rail_manipulation_msgs/SegmentedObjectList segmented_objects

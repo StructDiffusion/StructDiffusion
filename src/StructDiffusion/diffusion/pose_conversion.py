@@ -5,7 +5,7 @@ import pytorch3d.transforms as tra3d
 from StructDiffusion.utils.rotation_continuity import compute_rotation_matrix_from_ortho6d
 
 
-def get_diffusion_variables(struct_xyztheta_inputs, obj_xyztheta_inputs):
+def get_diffusion_variables_from_9D_actions(struct_xyztheta_inputs, obj_xyztheta_inputs):
 
     # important: we need to get the first two columns, not first two rows
     # array([[ 3,  4,  5],
@@ -24,6 +24,23 @@ def get_diffusion_variables(struct_xyztheta_inputs, obj_xyztheta_inputs):
 
     # print(x.shape)
 
+    return x
+
+
+def get_diffusion_variables_from_H(poses):
+    """
+    [[0,1,2,3],
+    [4,5,6,7],
+    [8,9,10,11],
+    [12,13,14,15]
+    :param obj_xyztheta_inputs: B, N, 4, 4
+    :return:
+    """
+
+    xyz_6d_idxs = [3, 7, 11, 0, 4, 8, 1, 5, 9]
+
+    B, N, _, _ = poses.shape
+    x = poses.reshape(B, N, 16)[:, :, xyz_6d_idxs]  # B, N, 9
     return x
 
 
