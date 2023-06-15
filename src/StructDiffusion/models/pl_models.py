@@ -83,7 +83,7 @@ class ConditionalPoseDiffusionModel(pl.LightningModule):
 
 class PairwiseCollisionModel(pl.LightningModule):
 
-    def __init__(self, model_cfg, loss_cfg, optimizer_cfg):
+    def __init__(self, model_cfg, loss_cfg, optimizer_cfg, data_cfg):
         super().__init__()
         self.save_hyperparameters()
 
@@ -95,6 +95,9 @@ class PairwiseCollisionModel(pl.LightningModule):
 
         self.optimizer_cfg = optimizer_cfg
         self.configure_optimizers()
+
+        # this is stored, because some of the data parameters affect the model behavior
+        self.data_cfg = data_cfg
 
     def forward(self, batch):
         label = batch["label"]

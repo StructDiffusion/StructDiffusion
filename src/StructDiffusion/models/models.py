@@ -178,3 +178,7 @@ class PCTDiscriminator(torch.nn.Module):
     def forward(self, scene_xyz):
         label = self.classifier(scene_xyz)
         return label
+
+    def convert_logits(self, logits):
+        return torch.sigmoid(logits)
+

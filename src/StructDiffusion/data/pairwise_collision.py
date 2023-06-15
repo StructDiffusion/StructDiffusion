@@ -42,6 +42,16 @@ class PairwiseCollisionDataset(torch.utils.data.Dataset):
         #   {"step_t": step_t, "obj": obj, "filename": filename}
         with open(urdf_pc_idx_file, "rb") as fh:
             self.urdf_to_pc_data = pickle.load(fh)
+        # filter out broken files
+        for urdf in self.urdf_to_pc_data:
+            valid_pc_data = []
+            for pd in self.urdf_to_pc_data[urdf]:
+                filename =  pd["filename"]
+                if "data00026058" in filename or "data00011415" in filename or "data00026061" in filename or "data00700565" in filename or "data00505290" in filename:
+                    continue
+                valid_pc_data.append(pd)
+            if valid_pc_data:
+                self.urdf_to_pc_data[urdf] = valid_pc_data
 
         # build data index
         # each sample is a tuple of (collision filename, idx for the labels and poses)
@@ -337,11 +347,16 @@ class PairwiseCollisionDataset(torch.utils.data.Dataset):
 
 
 if __name__ == "__main__":
-    prep = PairwiseCollisionDataset(urdf_pc_idx_file="/home/weiyu/data_drive/StructDiffusion/pairwise_collision_data/urdf_pc_idx.pkl",
+    dataset = PairwiseCollisionDataset(urdf_pc_idx_file="/home/weiyu/data_drive/StructDiffusion/pairwise_collision_data/urdf_pc_idx.pkl",
                       collision_data_dir="/home/weiyu/data_drive/StructDiffusion/pairwise_collision_data",
-                      debug=True)
+                      debug=False)
 
-    for i in np.random.permutation(len(prep)):
-        print(i)
-        d = prep[i]
-        print(d["label"])
+    # for i in tqdm.tqdm(np.random.permutation(len(dataset))):
+    #     # print(i)
+    #     d = dataset[i]
+    #     # print(d["label"])
+    #     pass
+
+    dl = torch.utils.data.DataLoader(dataset, batch_size=32, num_workers=8)
+    for b in tqdm.tqdm(dl):
+        pass
