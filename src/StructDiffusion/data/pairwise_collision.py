@@ -285,8 +285,8 @@ class PairwiseCollisionDataset(torch.utils.data.Dataset):
 
         ###################################
         scene_xyz = array_to_tensor(scene_xyz)
-        # # convert to torch data
-        # label = bool(label)
+        # convert to torch data
+        label = int(label)
 
         if self.debug:
             print("intersection:", label)
@@ -351,12 +351,11 @@ if __name__ == "__main__":
                       collision_data_dir="/home/weiyu/data_drive/StructDiffusion/pairwise_collision_data",
                       debug=False)
 
-    # for i in tqdm.tqdm(np.random.permutation(len(dataset))):
-    #     # print(i)
-    #     d = dataset[i]
-    #     # print(d["label"])
-    #     pass
+    for i in tqdm.tqdm(np.random.permutation(len(dataset))):
+        # print(i)
+        d = dataset[i]
+        # print(d["label"])
 
-    dl = torch.utils.data.DataLoader(dataset, batch_size=32, num_workers=8)
-    for b in tqdm.tqdm(dl):
-        pass
+    # dl = torch.utils.data.DataLoader(dataset, batch_size=32, num_workers=8)
+    # for b in tqdm.tqdm(dl):
+    #     pass
