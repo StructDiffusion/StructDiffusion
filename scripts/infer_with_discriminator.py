@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 from StructDiffusion.data.semantic_arrangement import SemanticArrangementDataset
 from StructDiffusion.language.tokenizer import Tokenizer
 from StructDiffusion.models.pl_models import ConditionalPoseDiffusionModel, PairwiseCollisionModel
-from StructDiffusion.diffusion.sampler import Sampler
+from StructDiffusion.diffusion.sampler import SamplerV2
 from StructDiffusion.diffusion.pose_conversion import get_struct_objs_poses
 from StructDiffusion.utils.files import get_checkpoint_path_from_dir
 from StructDiffusion.utils.batch_inference import move_pc_and_create_scene_simple, visualize_batch_pcs
@@ -30,7 +30,8 @@ def main(args, cfg):
         cfg.DATASET.ignore_rgb = False
         dataset = SemanticArrangementDataset(split="test", tokenizer=tokenizer, **cfg.DATASET)
 
-        sampler = Sampler(ConditionalPoseDiffusionModel, checkpoint_path, device)
+        sampler = SamplerV2(ConditionalPoseDiffusionModel, diffusion_checkpoint_path,
+                            PairwiseCollisionModel, collision_checkpoint_path, device)
 
         data_idxs = np.random.permutation(len(dataset))
         for di in data_idxs:
@@ -40,9 +41,8 @@ def main(args, cfg):
             batch = dataset.single_datum_to_batch(datum, args.num_samples, device, inference_mode=True)
 
             num_poses = datum["goal_poses"].shape[0]
-            xs = sampler.sample(batch, num_poses)
+            struct_pose, pc_poses_in_struct = sampler.sample(batch, num_poses)
 
-            struct_pose, pc_poses_in_struct = get_struct_objs_poses(xs[0])
             new_obj_xyzs = move_pc_and_create_scene_simple(batch["pcs"], struct_pose, pc_poses_in_struct)
             visualize_batch_pcs(new_obj_xyzs, args.num_samples, limit_B=10, trimesh=True)
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
                         default="ConditionalPoseDiffusion",
                         type=str)
     parser.add_argument("--collision_checkpoint_id",
-                        default="Collision",
+                        default="curhl56k",
                         type=str)
     parser.add_argument("--eval_mode",
                         default="infer",
@@ -68,7 +68,7 @@ if __name__ == "__main__":
                         default=42,
                         type=int)
     parser.add_argument("--num_samples",
-                        default=100,
+                        default=10,
                         type=int)
     args = parser.parse_args()
 

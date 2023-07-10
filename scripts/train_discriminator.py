@@ -23,7 +23,7 @@ def main(cfg):
     train_dataloader = DataLoader(train_dataset, shuffle=True, **cfg.DATALOADER)
     valid_dataloader = DataLoader(valid_dataset, shuffle=False, **cfg.DATALOADER)
 
-    model = PairwiseCollisionModel(cfg.MODEL, cfg.LOSS, cfg.OPTIMIZER)
+    model = PairwiseCollisionModel(cfg.MODEL, cfg.LOSS, cfg.OPTIMIZER, cfg.DATASET)
 
     trainer = pl.Trainer(logger=wandb_logger, callbacks=[checkpoint_callback], **cfg.TRAINER)
 

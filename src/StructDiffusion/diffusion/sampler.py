@@ -1,6 +1,6 @@
 import torch
 from tqdm import tqdm
-import pytorch3d as tra3d
+import pytorch3d.transforms as tra3d
 
 from StructDiffusion.diffusion.noise_schedule import extract
 from StructDiffusion.diffusion.pose_conversion import get_struct_objs_poses
@@ -107,7 +107,7 @@ class SamplerV2:
             pad_mask = batch["pad_mask"]
             # calling the backbone instead of the pytorch-lightning model
             with torch.no_grad():
-                predicted_noise = self.backbone.forward(t, pcs, sentence, x_noisy, type_index, position_index, pad_mask)
+                predicted_noise = self.diffusion_backbone.forward(t, pcs, sentence, x_noisy, type_index, position_index, pad_mask)
 
             # compute noisy x at t
             model_mean = sqrt_recip_alphas_t * (x_noisy - betas_t * predicted_noise / sqrt_one_minus_alphas_cumprod_t)
@@ -149,10 +149,6 @@ class SamplerV2:
 
         N, P, _ = obj_xyzs.shape
         print("S, N, P: {}, {}, {}".format(S, N, P))
-
-        if visualize:
-            print("visualizing initial scene")
-            visualize_batch_pcs(obj_xyzs, 1, N, P)
 
         ####################################################
         # S, N, ...
@@ -277,16 +273,24 @@ class SamplerV2:
         print("elite scores:", elite_scores)
 
         ####################################################
-        # visualize best samples
-        num_scene_pts = 4096 # if discriminator_num_scene_pts is None else discriminator_num_scene_pts
-        batch_current_pc_pose = current_pc_pose[0: num_elite * N]
-        best_new_obj_xyzs, best_goal_pc_pose, best_subsampled_scene_xyz, _, _ = \
-            move_pc_and_create_scene_new(obj_xyzs, elite_obj_params, elite_struct_poses, batch_current_pc_pose,
-                                         target_object_inds, self.device,
-                                         return_scene_pts=True, num_scene_pts=num_scene_pts, normalize_pc=True)
-        if visualize:
-            print("visualizing elite rearrangements ranked by collision model/discriminator")
-            visualize_batch_pcs(best_new_obj_xyzs, num_elite, N, P, limit_B=num_elite)
+        # # visualize best samples
+        # num_scene_pts = 4096 # if discriminator_num_scene_pts is None else discriminator_num_scene_pts
+        # batch_current_pc_pose = current_pc_pose[0: num_elite * N]
+        # best_new_obj_xyzs, best_goal_pc_pose, best_subsampled_scene_xyz, _, _ = \
+        #     move_pc_and_create_scene_new(obj_xyzs, elite_obj_params, elite_struct_poses, batch_current_pc_pose,
+        #                                  target_object_inds, self.device,
+        #                                  return_scene_pts=True, num_scene_pts=num_scene_pts, normalize_pc=True)
+        # if visualize:
+        #     print("visualizing elite rearrangements ranked by collision model/discriminator")
+        #     visualize_batch_pcs(best_new_obj_xyzs, num_elite, limit_B=num_elite)
 
+        # num_elite, N, 6
+        elite_obj_params = elite_obj_params.reshape(num_elite * N, -1)
+        pc_poses_in_struct = torch.eye(4).repeat(num_elite * N, 1, 1).to(self.device)
+        pc_poses_in_struct[:, :3, :3] = tra3d.euler_angles_to_matrix(elite_obj_params[:, 3:], "XYZ")
+        pc_poses_in_struct[:, :3, 3] = elite_obj_params[:, :3]
+        pc_poses_in_struct = pc_poses_in_struct.reshape(num_elite, N, 4, 4)  # num_elite, N, 4, 4
 
-        return xs
+        struct_pose = elite_struct_poses.reshape(num_elite, N, 4, 4)[:, 0,].unsqueeze(1)  # num_elite, 1, 4, 4
+
+        return struct_pose, pc_poses_in_struct

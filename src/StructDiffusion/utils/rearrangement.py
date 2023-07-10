@@ -558,7 +558,7 @@ def fit_gaussians(samples, sigma_eps=0.01):
     return mus, sigmas
 
 
-def show_pcs_with_trimesh(obj_xyzs, obj_rgbs):
+def show_pcs_with_trimesh(obj_xyzs, obj_rgbs, return_scene=False):
     vis_pcs = [trimesh.PointCloud(obj_xyz, colors=np.concatenate([obj_rgb * 255, np.ones([obj_rgb.shape[0], 1]) * 255], axis=-1)) for
                obj_xyz, obj_rgb in zip(obj_xyzs, obj_rgbs)]
     scene = trimesh.Scene()
@@ -582,7 +582,10 @@ def show_pcs_with_trimesh(obj_xyzs, obj_rgbs):
     RT_4x4 = np.linalg.inv(RT_4x4)
     RT_4x4 = RT_4x4 @ np.diag([1, -1, -1, 1])
     scene.camera_transform = RT_4x4
-    scene.show()
+    if return_scene:
+        return scene
+    else:
+        scene.show()
 
 
 def show_pcs_with_predictions(xyz, rgb, gts, predictions, add_coordinate_frame=False, return_buffer=False, add_table=True, side_view=True):

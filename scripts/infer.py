@@ -65,7 +65,7 @@ if __name__ == "__main__":
                         default=42,
                         type=int)
     parser.add_argument("--num_samples",
-                        default=100,
+                        default=10,
                         type=int)
     args = parser.parse_args()
 
