@@ -1,0 +1,12 @@
+DATASET:
+  data_roots:
+    - ${base_dirs.testing_data}/circle/result
+    - ${base_dirs.testing_data}/dinner/result
+    - ${base_dirs.testing_data}/line/result
+    - ${base_dirs.testing_data}/tower/result
+  index_roots:
+    - index
+    - index
+    - index
+    - index
+  vocab_dir: ${base_dirs.testing_data}/type_vocabs_coarse.json

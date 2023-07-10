@@ -1,7 +1,11 @@
 base_dirs:
-  data: /home/weiyu/data_drive/StructDiffusion/training_data
-  pairwise_collision_data: /home/weiyu/data_drive/StructDiffusion/pairwise_collision_data
-  assets_dir: /home/weiyu/Research/intern/brain_gym/data/acronym_handpicked_large
-  experiment: /home/weiyu/data_drive/StructDiffusion/experiments
-
-  wandb_dir: /home/weiyu/data_drive/StructDiffusion/wandb_logs
+  # needed quick start
+  testing_data: /path/to/testing_data
+  wandb_dir: /path/to/wandb_logs
+  # needed for training diffusion
+  data: /path/to/training_data
+  # needed for training collision discriminator
+  pairwise_collision_data: /path/to/pairwise_collision_data
+  # needed for evaluation in physics sim
+  # assets_dir: /path/to/acronym_handpicked_large
+  # experiment: /path/to/experiments

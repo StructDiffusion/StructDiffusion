@@ -8,6 +8,7 @@ WANDB:
 DATASET:
   urdf_pc_idx_file: ${base_dirs.pairwise_collision_data}/urdf_pc_idx.pkl
   collision_data_dir: ${base_dirs.pairwise_collision_data}
+  new_data_root: ${base_dirs.data}
 
   # important
   num_pts: 1024

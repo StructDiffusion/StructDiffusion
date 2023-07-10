@@ -518,24 +518,3 @@ class ContinuousTokenizer:
             else:
                 raise KeyError("Do not recognize the type {} of the given token: {}".format(typ, value))
         return idx
-
-
-if __name__ == "__main__":
-    tokenizer = Tokenizer("/home/weiyu/data_drive/data_new_objects/type_vocabs_coarse.json")
-    # print(tokenizer.get_all_values_of_type("class"))
-    # print(tokenizer.get_all_values_of_type("color"))
-    # print(tokenizer.get_all_values_of_type("material"))
-    #
-    # for type in tokenizer.type_vocabs:
-    #     print(type, tokenizer.type_vocabs[type])
-
-    tokenizer.prepare_grounding_reference()
-
-    # for i in range(100):
-    #     types = list(tokenizer.continuous_types) + list(tokenizer.discrete_types)
-    #     for t in types:
-    #         v = tokenizer.get_valid_random_value(t)
-    #         print(v)
-    #         print(tokenizer.tokenize(v, t))
-
-    # build_vocab("/home/weiyu/data_drive/examples_v4/leonardo/vocab.json", "/home/weiyu/data_drive/examples_v4/leonardo/type_vocabs.json")

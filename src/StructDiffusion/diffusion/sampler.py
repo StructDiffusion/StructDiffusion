@@ -4,7 +4,7 @@ import pytorch3d.transforms as tra3d
 
 from StructDiffusion.diffusion.noise_schedule import extract
 from StructDiffusion.diffusion.pose_conversion import get_struct_objs_poses
-from StructDiffusion.utils.batch_inference import move_pc_and_create_scene_simple, visualize_batch_pcs, move_pc_and_create_scene_new
+from StructDiffusion.utils.batch_inference import move_pc_and_create_scene_new
 
 class Sampler:
 

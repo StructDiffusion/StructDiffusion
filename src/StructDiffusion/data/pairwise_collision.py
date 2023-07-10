@@ -32,11 +32,27 @@ def load_pairwise_collision_data(h5_filename):
     return data_dict
 
 
+def replace_root_directory(original_filename: str, new_root: str) -> str:
+    # Split the original filename into a list by directory
+    original_parts = original_filename.split('/')
+
+    # Find the index of the "data_new_objects" part
+    data_index = original_parts.index('data_new_objects')
+
+    # Split the new root into a list by directory
+    new_root_parts = new_root.split('/')
+
+    # Combine the new root with the rest of the original filename
+    updated_filename = '/'.join(new_root_parts + original_parts[data_index + 1:])
+
+    return updated_filename
+
+
 class PairwiseCollisionDataset(torch.utils.data.Dataset):
 
     def __init__(self, urdf_pc_idx_file, collision_data_dir, random_rotation=True,
                  num_pts=1024, normalize_pc=True, num_scene_pts=2048, data_augmentation=False,
-                 debug=False):
+                 debug=False, new_data_root=None):
 
         # load dictionary mapping from urdf to list of pc data, each sample is
         #   {"step_t": step_t, "obj": obj, "filename": filename}
@@ -49,6 +65,8 @@ class PairwiseCollisionDataset(torch.utils.data.Dataset):
                 filename =  pd["filename"]
                 if "data00026058" in filename or "data00011415" in filename or "data00026061" in filename or "data00700565" in filename or "data00505290" in filename:
                     continue
+                if new_data_root:
+                    pd["filename"] = replace_root_directory(pd["filename"], new_data_root)
                 valid_pc_data.append(pd)
             if valid_pc_data:
                 self.urdf_to_pc_data[urdf] = valid_pc_data
@@ -297,65 +315,3 @@ class PairwiseCollisionDataset(torch.utils.data.Dataset):
             "label": torch.FloatTensor([label]),
         }
         return datum
-
-    # @staticmethod
-    # def collate_fn(data):
-    #     """
-    #     :param data:
-    #     :return:
-    #     """
-    #
-    #     batched_data_dict = {}
-    #     for key in ["is_circle"]:
-    #         batched_data_dict[key] = torch.cat([dict[key] for dict in data], dim=0)
-    #     for key in ["scene_xyz"]:
-    #         batched_data_dict[key] = torch.stack([dict[key] for dict in data], dim=0)
-    #
-    #     return batched_data_dict
-    #
-    # # def create_pair_xyzs_from_obj_xyzs(self, new_obj_xyzs, debug=False):
-    # #
-    # #     new_obj_xyzs = [xyz.cpu().numpy() for xyz in new_obj_xyzs]
-    # #
-    # #     # compute pairwise collision
-    # #     scene_xyzs = []
-    # #     obj_xyz_pair_idxs = list(itertools.combinations(range(len(new_obj_xyzs)), 2))
-    # #
-    # #     for obj_xyz_pair_idx in obj_xyz_pair_idxs:
-    # #         obj_xyz_pair = [new_obj_xyzs[obj_xyz_pair_idx[0]], new_obj_xyzs[obj_xyz_pair_idx[1]]]
-    # #         num_indicator = 2
-    # #         obj_xyz_pair_ind = []
-    # #         for oi, obj_xyz in enumerate(obj_xyz_pair):
-    # #             obj_xyz = np.concatenate([obj_xyz, np.tile(np.eye(num_indicator)[oi], (obj_xyz.shape[0], 1))], axis=1)
-    # #             obj_xyz_pair_ind.append(obj_xyz)
-    # #         pair_scene_xyz = np.concatenate(obj_xyz_pair_ind, axis=0)
-    # #
-    # #         # subsampling and normalizing pc
-    # #         rand_idx = np.random.randint(0, pair_scene_xyz.shape[0], self.num_scene_pts)
-    # #         pair_scene_xyz = pair_scene_xyz[rand_idx]
-    # #         if self.normalize_pc:
-    # #             pair_scene_xyz[:, 0:3] = pc_normalize(pair_scene_xyz[:, 0:3])
-    # #
-    # #         scene_xyzs.append(array_to_tensor(pair_scene_xyz))
-    # #
-    # #     if debug:
-    # #         for scene_xyz in scene_xyzs:
-    # #             show_pcs([scene_xyz[:, 0:3]], [np.tile(np.array([0, 1, 0], dtype=np.float), (scene_xyz.shape[0], 1))],
-    # #                      add_coordinate_frame=True)
-    # #
-    # #     return scene_xyzs
-
-
-if __name__ == "__main__":
-    dataset = PairwiseCollisionDataset(urdf_pc_idx_file="/home/weiyu/data_drive/StructDiffusion/pairwise_collision_data/urdf_pc_idx.pkl",
-                      collision_data_dir="/home/weiyu/data_drive/StructDiffusion/pairwise_collision_data",
-                      debug=False)
-
-    for i in tqdm.tqdm(np.random.permutation(len(dataset))):
-        # print(i)
-        d = dataset[i]
-        # print(d["label"])
-
-    # dl = torch.utils.data.DataLoader(dataset, batch_size=32, num_workers=8)
-    # for b in tqdm.tqdm(dl):
-    #     pass
